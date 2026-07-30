@@ -191,7 +191,7 @@ fn totp_for(secret_b32: &str, email: &str) -> Result<TOTP, ApiError> {
         1,
         30,
         secret,
-        Some("business-project".into()),
+        Some("smeta-check".into()),
         email.to_owned(),
     )
     .map_err(|e| anyhow::anyhow!("totp build: {e}").into())

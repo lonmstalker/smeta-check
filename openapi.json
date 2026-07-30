@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "business-project API",
+    "title": "smeta-check API",
     "description": "Контракт между бэкендом и клиентами",
     "license": {
       "name": ""

@@ -126,7 +126,7 @@ async fn frontend_log(Json(log): Json<FrontendLog>) -> StatusCode {
 
 #[derive(OpenApi)]
 #[openapi(
-    info(title = "business-project API", description = "Контракт между бэкендом и клиентами"),
+    info(title = "smeta-check API", description = "Контракт между бэкендом и клиентами"),
     modifiers(&BearerSecurity),
     components(schemas(core::error::ErrorBody)),
     paths(

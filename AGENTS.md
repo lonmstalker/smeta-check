@@ -1,4 +1,4 @@
-# business-project — правила для агентов
+# smeta-check — правила для агентов
 
 Детальные инструкции — в скиллах `.claude/skills/`: `workflow` (процесс и
 документы), `planning` (составление и валидация планов), `new-feature`
