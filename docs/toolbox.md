@@ -42,14 +42,13 @@
 | `estimates/mod.rs` | сметы: `create/list/get/count_of` (все с владельцем), `lines_of/replace_lines`, `extension_of` (только xlsx/xls), `stored_name(id, ext)`, `clean_file_name`, потолки `MAX_FILE_BYTES`/`MAX_PER_USER` |
 | `estimates/parse/` | `parse(bytes)` — файл Excel в строки (звать только из `spawn_blocking`); нераспознанное остаётся сырым текстом, `ParseError` даёт ключ локализации и метку метрики |
 | `estimates/worker.rs` | `run_pending(pool, files_dir)` — разобрать очередь смет; зовётся из `jobs.rs` по тику |
-| `items/mod.rs` | образец row-level authorization: все функции принимают владельца и фильтруют по нему прямо в SQL |
 | `lib.rs` | `AppState` (пул + `Arc<Settings>`); хендлеру нужен пул — `State<PgPool>`, нужна настройка — `State<Arc<Settings>>` |
 
 ## Тест-инфраструктура бэкенда: `server/tests/api/common.rs`
 
 `spawn_app()` — приложение на чистой БД одной строкой; `TestApp`:
 `get/get_auth/post/post_auth/patch_auth/delete_auth/request` (произвольные
-заголовки), `register_user()`, `promote_to_admin(email)`,
+заголовки), `register_user()`,
 `refresh_token_of(res)`, `last_email_to(recipient)` (читает outbox);
 `post_file(path, file_name, bytes, token)` — загрузка файла (тело multipart
 собирается внутри), `files_dir` — каталог файлов этого теста (стирается сам);
@@ -61,7 +60,7 @@
 
 | Файл | Что даёт |
 |------|----------|
-| `api/client.ts` | `api.get/post/patch/delete` (авто-refresh при 401), `setAccessToken`, `setOnSessionExpired(cb)` (сессия умерла — интерфейсу пора выйти), класс `ApiError` (+ `fields`), `fieldError(error, field)`, типы API из `schema.d.ts` (`User`, `Item`, `SessionInfo`, …) — руками типы не писать |
+| `api/client.ts` | `api.get/post/patch/delete` (авто-refresh при 401), `setAccessToken`, `setOnSessionExpired(cb)` (сессия умерла — интерфейсу пора выйти), класс `ApiError` (+ `fields`), `fieldError(error, field)`, типы API из `schema.d.ts` (`User`, `Estimate`, `SessionInfo`, …) — руками типы не писать |
 | `auth/AuthContext.tsx` | `useAuth()`: `user`, `ready`, `register`, `login` (вернёт pending-токен при 2FA), `verify2fa`, `logout`, `refreshUser` |
 | `lib/utils.ts` | `cn(...)` — слияние tailwind-классов |
 | `lib/logger.ts` | `log.info/warn/error` (warn/error улетают на бэк), `installGlobalErrorLogging()` |
@@ -78,7 +77,7 @@
 | `components/AppShell.tsx` | `AppShell` (шапка), `Page` (колонка контента), `PageHeader` — общий каркас всех обычных страниц |
 | `components/form.tsx` | `FormError` (ошибка про форму целиком), `FieldError` (про поле), `invalid(error, field)` — подсветка поля |
 | `components/states.tsx` | `EmptyState`, `QueryError` (с кнопкой «Повторить»), `PendingButton` (сама блокируется на время запроса) |
-| `components/guards.tsx` | `RequireAuth`, `RequireAdmin` — только UX-редирект, права проверяет бэкенд |
+| `components/guards.tsx` | `RequireAuth` — только UX-редирект, права проверяет бэкенд |
 | `components/DateTime.tsx` | `<DateTime value={rfc3339} />` — время с бэка в местном формате браузера |
 | `pages/auth/AuthLayout.tsx` | `AuthCard` — обёртка форм входа |
 | `sonner` | тосты: `<Toaster />` уже в App, зови `toast.info/error(...)` |

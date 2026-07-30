@@ -60,7 +60,7 @@ pub fn request_id_layer() -> tower_http::request_id::SetRequestIdLayer<MakeReque
 /// Один лог-спан и метрики (счётчик + латентность) на каждый HTTP-запрос
 pub async fn track_http(req: Request, next: Next) -> Response {
     let method = req.method().clone();
-    // matched path ("/api/items/{id}"), а не сырой URL — иначе кардинальность взорвётся
+    // matched path ("/api/estimates/{id}"), а не сырой URL — иначе кардинальность взорвётся
     let path = req
         .extensions()
         .get::<MatchedPath>()

@@ -20,7 +20,7 @@ describe('локали', () => {
   test('русский словарь содержит все формы склонения количества', () => {
     const ru = resources.ru.translation as Record<string, string>
     for (const form of ['one', 'few', 'many']) {
-      expect(ru[`items.count_${form}`], `items.count_${form}`).toBeDefined()
+      expect(ru[`estimates.recognized_${form}`], `estimates.recognized_${form}`).toBeDefined()
     }
   })
 })

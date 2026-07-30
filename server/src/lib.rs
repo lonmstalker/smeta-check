@@ -1,7 +1,6 @@
 pub mod auth;
 pub mod core;
 pub mod estimates;
-pub mod items;
 pub mod jobs;
 pub mod users;
 
@@ -61,7 +60,6 @@ pub fn app(state: AppState) -> Router {
     let common = Router::new()
         .merge(auth::http::router(&settings))
         .merge(users::http::router())
-        .merge(items::http::router())
         .merge(estimates::http::router())
         .merge(core::health::router())
         .merge(frontend_log_router(&settings))
@@ -161,9 +159,6 @@ async fn frontend_log(Json(log): Json<FrontendLog>) -> StatusCode {
         core::health::version,
         users::http::me,
         users::http::update_me,
-        items::http::list_items,
-        items::http::create_item,
-        items::http::delete_item,
         estimates::http::upload_estimate,
         estimates::http::list_estimates,
         estimates::http::get_estimate,

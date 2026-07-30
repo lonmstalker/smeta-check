@@ -20,14 +20,14 @@ use crate::common::spawn_app;
 async fn my_scenario() {
     let app = spawn_app().await;                 // чистая БД + все миграции
     let (token, email) = app.register_user().await; // готовый пользователь
-    let res = app.post_auth("/api/items", json!({"title": "x"}), &token).await;
+    let res = app.post_file("/api/estimates", "smeta.xlsx", b"...", &token).await;
     assert_eq!(res.status, StatusCode::CREATED);
 }
 ```
 
 Что уже есть в `TestApp` (common.rs) — НЕ переизобретать:
 - `get/post/post_auth/delete_auth/request` -> `TestResponse{status, body, cookies}`;
-- `register_user`, `promote_to_admin`, `refresh_token_of`, `last_email_to`
+- `register_user`, `refresh_token_of`, `last_email_to`, `post_file`, `fixture`
   (письма из dev-ящика outbox_emails);
 - запросы идут через `oneshot` без открытия портов и сети.
 
@@ -46,7 +46,7 @@ async fn my_scenario() {
 import { guestApi, mockApi, renderApp } from './test-utils'
 
 test('...', async () => {
-  guestApi({ '/api/items': () => [{ id: 1, title: 'x' }] })  // мок сети
+  guestApi({ '/api/estimates': () => [{ id: 'e1', file_name: 'x.xlsx' }] }) // мок сети
   renderApp(<App />)                    // реальные провайдеры приложения
   expect(await screen.findByText('x')).toBeInTheDocument()
 })

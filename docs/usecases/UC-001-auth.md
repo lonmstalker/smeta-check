@@ -95,11 +95,13 @@ IP-адреса (по умолчанию 30 запросов в минуту, н
   `garbage_token_rejected` (auth_verify.rs).
 - Защита от перебора: 429 при превышении частоты —
   `auth_requests_are_rate_limited_per_ip` (hardening.rs).
-- Роли: проверка на бэкенде, admin шире user —
-  `admin_can_delete_foreign_item` (items.rs),
-  `promote_admin_changes_role` (ops.rs).
-- Сквозной путь: «регистрация, создание записи, выход и повторный вход»
-  (web/e2e/item.spec.ts).
+- Роли: выдача роли и её хранение — `promote_admin_changes_role`
+  (ops.rs). Проверки роли в HTTP пока нет: маршрутов только для
+  админа тоже нет — extractor `AdminUser` ждёт первую админскую
+  страницу.
+- Сквозной путь: «регистрация, загрузка сметы и разбор на строки»
+  (web/e2e/estimates.spec.ts); выход и повторный вход — «смена пароля
+  закрывает сессию и требует войти заново» (web/e2e/account.spec.ts).
 - Ошибки локализованы ru/en —
   `api_errors_follow_accept_language_with_plurals`,
   `locales_have_identical_key_sets` (i18n.rs).

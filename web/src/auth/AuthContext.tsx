@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient()
 
   // Кэш запросов принадлежит конкретному пользователю: без сброса следующий
-  // вошедший в этой же вкладке увидел бы чужие данные (ключи вроде ['items']
+  // вошедший в этой же вкладке увидел бы чужие данные (ключи вроде ['estimates']
   // одинаковы для всех, а данные считаются свежими 30 секунд).
   const forget = useCallback(() => {
     setAccessToken(null)

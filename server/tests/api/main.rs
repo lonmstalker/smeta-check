@@ -23,6 +23,5 @@ mod estimates;
 mod estimates_parse;
 mod hardening;
 mod i18n;
-mod items;
 mod ops;
 mod sessions;

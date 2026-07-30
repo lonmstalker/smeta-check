@@ -706,143 +706,6 @@
         }
       }
     },
-    "/api/items": {
-      "get": {
-        "tags": [
-          "items"
-        ],
-        "operationId": "list_items",
-        "parameters": [
-          {
-            "name": "cursor",
-            "in": "query",
-            "description": "вернуть записи после этого id (next_cursor прошлой страницы)",
-            "required": false,
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "int64"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "размер страницы; по умолчанию 20, максимум 100",
-            "required": false,
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ItemsPage"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "items"
-        ],
-        "operationId": "create_item",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateItem"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Item"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": ""
-          },
-          "422": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/items/{id}": {
-      "delete": {
-        "tags": [
-          "items"
-        ],
-        "operationId": "delete_item",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "401": {
-            "description": ""
-          },
-          "404": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
     "/api/users/me": {
       "get": {
         "tags": [
@@ -974,18 +837,6 @@
         "properties": {
           "token": {
             "type": "string"
-          }
-        }
-      },
-      "CreateItem": {
-        "type": "object",
-        "required": [
-          "title"
-        ],
-        "properties": {
-          "title": {
-            "type": "string",
-            "minLength": 1
           }
         }
       },
@@ -1191,44 +1042,6 @@
         "properties": {
           "email": {
             "type": "string"
-          }
-        }
-      },
-      "Item": {
-        "type": "object",
-        "required": [
-          "id",
-          "title"
-        ],
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "title": {
-            "type": "string"
-          }
-        }
-      },
-      "ItemsPage": {
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Item"
-            }
-          },
-          "next_cursor": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "есть продолжение — передайте это значение как cursor"
           }
         }
       },

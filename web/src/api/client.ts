@@ -5,8 +5,6 @@ import type { components } from './schema'
 export type User = components['schemas']['User']
 export type TokenResponse = components['schemas']['TokenResponse']
 export type LoginResponse = components['schemas']['LoginResponse']
-export type Item = components['schemas']['Item']
-export type ItemsPage = components['schemas']['ItemsPage']
 export type Estimate = components['schemas']['Estimate']
 export type EstimateDetails = components['schemas']['EstimateDetails']
 export type EstimateLine = components['schemas']['EstimateLine']

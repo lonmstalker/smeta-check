@@ -324,38 +324,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/items": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["list_items"];
-        put?: never;
-        post: operations["create_item"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/items/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["delete_item"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/users/me": {
         parameters: {
             query?: never;
@@ -403,9 +371,6 @@ export interface components {
         };
         ConfirmEmailRequest: {
             token: string;
-        };
-        CreateItem: {
-            title: string;
         };
         Credentials: {
             /** Format: email */
@@ -482,19 +447,6 @@ export interface components {
         };
         ForgotRequest: {
             email: string;
-        };
-        Item: {
-            /** Format: int64 */
-            id: number;
-            title: string;
-        };
-        ItemsPage: {
-            items: components["schemas"]["Item"][];
-            /**
-             * Format: int64
-             * @description есть продолжение — передайте это значение как cursor
-             */
-            next_cursor?: number | null;
         };
         LoginResponse: {
             /** @description присутствует, если 2FA не требуется */
@@ -1205,104 +1157,6 @@ export interface operations {
             };
             /** @description база недоступна */
             503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    list_items: {
-        parameters: {
-            query?: {
-                /** @description вернуть записи после этого id (next_cursor прошлой страницы) */
-                cursor?: number | null;
-                /** @description размер страницы; по умолчанию 20, максимум 100 */
-                limit?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ItemsPage"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    create_item: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateItem"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Item"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-        };
-    };
-    delete_item: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };

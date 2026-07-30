@@ -254,15 +254,6 @@ impl TestApp {
         (res.body["access_token"].as_str().unwrap().to_owned(), email)
     }
 
-    /// Сделать пользователя администратором (только для тестов)
-    pub async fn promote_to_admin(&self, email: &str) {
-        sqlx::query("UPDATE users SET role = 'admin' WHERE email = $1")
-            .bind(email)
-            .execute(&self.pool)
-            .await
-            .expect("promote to admin");
-    }
-
     /// Достать «сырой» refresh-токен из Set-Cookie ответа
     pub fn refresh_token_of(res: &TestResponse) -> Option<String> {
         res.cookies

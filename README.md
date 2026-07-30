@@ -45,7 +45,6 @@ server/            один crate, домены как модули (DDD-lite)
   src/auth/        вход, JWT, 2FA, восстановление, OAuth (docs/oauth.md)
   src/users/       пользователи, роли, extractor'ы CurrentUser/AdminUser
   src/estimates/   сметы: загрузка файла, карточка, состояние разбора
-  src/items/       примерная сущность — переименовать в первую настоящую
   src/bin/         api (сервер) и ops (операторские команды на проде)
   tests/api/       интеграционные тесты на реальном Postgres
 web/               React SPA

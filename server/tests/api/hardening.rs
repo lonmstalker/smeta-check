@@ -102,8 +102,8 @@ async fn body_limit_stays_tight_everywhere_except_upload() {
     let app = spawn_app().await;
     let (token, _) = app.register_user().await;
     // обычная ручка живёт со старым лимитом в мегабайт
-    let fat = json!({ "title": "x".repeat(2 * 1024 * 1024) });
-    let res = app.post_auth("/api/items", fat, &token).await;
+    let fat = json!({ "display_name": "x".repeat(2 * 1024 * 1024) });
+    let res = app.patch_auth("/api/users/me", fat, &token).await;
     assert_eq!(res.status, StatusCode::PAYLOAD_TOO_LARGE);
 
     // а загрузка сметы обязана принять файл больше мегабайта

@@ -1,6 +1,9 @@
 # Release-сборка с LTO происходит тут (CI/сервер), не на ноутбуке.
 # ponytail: без cargo-chef; добавить, когда docker-билды в CI станут медленными.
-FROM rust:1-slim AS server-build
+# Сборочный и рабочий образы обязаны быть одного выпуска Debian: бинарь,
+# собранный на более новой glibc, в старой не запустится вовсе
+# («libc.so.6: version GLIBC_2.38 not found»). Меняешь один — меняй оба.
+FROM rust:1-slim-bookworm AS server-build
 # коммит попадает в /api/version — видно, что именно сейчас развёрнуто
 ARG GIT_SHA=unknown
 WORKDIR /app

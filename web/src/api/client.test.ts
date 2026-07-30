@@ -41,7 +41,7 @@ test('параллельные 401 обновляют токен один раз
   let refreshed = false
   const { calls } = mockApi({
     // до обновления обе ручки отвечают 401, после — отдают данные
-    '/api/items': () => (refreshed ? { items: [] } : err401()),
+    '/api/estimates': () => (refreshed ? [] : err401()),
     '/api/users/me': () => (refreshed ? { id: 'u1' } : err401()),
     '/api/auth/refresh': () => {
       refreshed = true
@@ -49,7 +49,7 @@ test('параллельные 401 обновляют токен один раз
     },
   })
 
-  await Promise.all([api.get('/api/items'), api.get('/api/users/me')])
+  await Promise.all([api.get('/api/estimates'), api.get('/api/users/me')])
 
   expect(calls.filter((c) => c === 'POST /api/auth/refresh')).toHaveLength(1)
 })
@@ -58,8 +58,8 @@ test('провал обновления сообщает приложению, �
   const expired = vi.fn()
   setOnSessionExpired(expired)
   setAccessToken('stale')
-  mockApi({ '/api/items': err401, '/api/auth/refresh': err401 })
+  mockApi({ '/api/estimates': err401, '/api/auth/refresh': err401 })
 
-  await expect(api.get('/api/items')).rejects.toThrow()
+  await expect(api.get('/api/estimates')).rejects.toThrow()
   expect(expired).toHaveBeenCalledTimes(1)
 })
