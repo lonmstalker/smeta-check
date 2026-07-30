@@ -1,0 +1,14 @@
+/target
+/mutants.out*
+/web/.stryker-tmp
+/web/reports
+/web/stryker-incremental.json
+node_modules/
+/web/dist
+/web/test-results
+/web/playwright-report
+/web/playwright-report-visual
+.env
+.env.prod
+.idea/
+.DS_Store

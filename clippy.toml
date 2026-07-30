@@ -1,0 +1,5 @@
+# В тестах unwrap/expect/panic — нормальный способ сказать «так быть не может»:
+# упавший тест и есть сообщение об ошибке.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true

@@ -1,0 +1,241 @@
+# Тяжёлые сборки живут здесь, не на ноутбуке.
+# timeout-minutes на каждом джобе: зависший прогон убивается, а не крутится часами.
+# Сторонние actions закреплены полным commit SHA: тег можно молча передвинуть на
+# другой код, SHA — нельзя. Обновляет их Renovate отдельными PR.
+name: ci
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      update-visual:
+        description: "Перегенерировать скриншот-эталоны (артефакт visual-snapshots)"
+        type: boolean
+        default: false
+
+# джобам нужен только сам код; ничего не публикуем и не комментируем
+permissions:
+  contents: read
+
+jobs:
+  server:
+    runs-on: ubuntu-latest # docker уже есть — testcontainers работают из коробки
+    timeout-minutes: 20
+    env:
+      MACHETE_VERSION: v0.9.2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - name: cargo-machete (неиспользуемые зависимости)
+        run: |
+          curl -fsSL "https://github.com/bnjbvr/cargo-machete/releases/download/${MACHETE_VERSION}/cargo-machete-${MACHETE_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+            | tar xz -C /usr/local/bin --strip-components=1 --wildcards '*/cargo-machete'
+          cargo machete
+      - run: cargo test
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      # формат + линт одним инструментом; заодно проверка совместимости с TS
+      - run: pnpm exec biome ci .
+      - run: pnpm test
+      - run: pnpm build
+      # анимации не должны трогать layout-свойства (нужен собранный CSS)
+      - run: node ../scripts/check-animations.mjs
+      # типы фронта обязаны совпадать со спекой (openapi.json)
+      - run: pnpm gen:api && git diff --exit-code src/api/schema.d.ts
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: web
+      - run: make e2e
+      # Отчёт нужен и на зелёном прогоне (посмотреть глазами), и на красном
+      - name: HTML-отчёт Playwright артефактом
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: web/playwright-report
+          retention-days: 14
+
+  # Скриншот-эталоны сверяются только здесь: контейнер Playwright фиксирует
+  # шрифты и рендеринг (локальная машина даёт другие пиксели — там сравнение
+  # выключено). Версия образа обязана совпадать с @playwright/test в web.
+  # Обновление эталонов: Run workflow с галкой update-visual, скачать
+  # артефакт visual-snapshots и закоммитить в web/e2e/__screenshots__.
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+    env:
+      UPDATE_SNAPSHOTS: ${{ github.event.inputs.update-visual || '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      - run: pnpm build
+        working-directory: web
+      - name: Скриншоты против эталонов
+        working-directory: web
+        run: |
+          if [ ! -d e2e/__screenshots__ ] && [ "$UPDATE_SNAPSHOTS" != "true" ]; then
+            echo "Эталонов ещё нет — запусти workflow вручную с update-visual"
+            exit 0
+          fi
+          pnpm exec playwright test -c playwright.visual.config.ts ${UPDATE_SNAPSHOTS:+--update-snapshots}
+      - name: Новые эталоны артефактом (скачать и закоммитить)
+        if: ${{ github.event.inputs.update-visual == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: visual-snapshots
+          path: web/e2e/__screenshots__
+      - name: Отчёт с картинками-диффами при падении
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: visual-report
+          path: web/playwright-report-visual
+          retention-days: 14
+
+  # Образ собирается только здесь. Без этого джоба сломанный Dockerfile или
+  # упавшие на старте миграции обнаружились бы при деплое, а не в PR.
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      db:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: docker build --build-arg GIT_SHA=${{ github.sha }} -t app:smoke .
+
+      - name: Запустить образ и дождаться готовности
+        run: |
+          docker run -d --name app --network host \
+            -e DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres \
+            -e JWT_SECRET=smoke-secret-not-for-prod \
+            app:smoke
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/api/health/ready >/dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8080/api/health/ready
+
+      - name: Отдаётся и SPA, и API
+        run: |
+          curl -fsS http://127.0.0.1:8080/ | grep -q 'id="root"'
+          curl -fsS http://127.0.0.1:8080/api/version | grep -q '"commit"'
+          # операторский бинарь тоже обязан быть в образе
+          docker exec app ops config check
+
+      - name: Логи приложения (для разбора падения)
+        if: always()
+        run: docker logs app
+
+  # Цепочка поставки и правила репозитория. Всё здесь требует сети, поэтому
+  # локальный `make verify` остаётся офлайн и быстрым.
+  policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DENY_VERSION: 0.20.2
+      GITLEAKS_VERSION: 8.30.1
+      OSV_VERSION: v2.4.0
+      ACTIONLINT_VERSION: 1.7.12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # gitleaks смотрит диапазон коммитов PR
+
+      - name: Наши правила (размер файлов, подавления проверок)
+        run: |
+          sh scripts/check-file-size.sh
+          sh scripts/check-suppressions.sh
+
+      - name: cargo-deny (уязвимости, лицензии, источники)
+        run: |
+          curl -fsSL "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+            | tar xz -C /usr/local/bin --strip-components=1 --wildcards '*/cargo-deny'
+          cargo-deny check
+
+      - name: gitleaks (секреты в коде)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar xz -C /usr/local/bin gitleaks
+          if [ -n "$BASE" ]; then
+            gitleaks git --no-banner --redact --log-opts "$BASE..HEAD"
+          else
+            gitleaks dir . --no-banner --redact
+          fi
+
+      - name: OSV-Scanner (уязвимости зависимостей фронта)
+        run: |
+          curl -fsSL -o /usr/local/bin/osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64"
+          chmod +x /usr/local/bin/osv-scanner
+          osv-scanner scan source --lockfile web/pnpm-lock.yaml
+
+      - name: actionlint (ошибки в самих workflow)
+        run: |
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | tar xz -C /usr/local/bin actionlint
+          actionlint
+
+      - name: Конфигурация Renovate разбирается
+        run: npx --yes --package renovate@43 -- renovate-config-validator --strict

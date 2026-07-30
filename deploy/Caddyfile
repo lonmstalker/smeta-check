@@ -1,0 +1,29 @@
+# Caddy сам получает и продлевает TLS-сертификат для DOMAIN (Let's Encrypt).
+{$DOMAIN} {
+	encode gzip
+
+	header {
+		# Страница грузит только свои ресурсы: чужой скрипт неоткуда взяться,
+		# даже если что-то попадёт в разметку. unsafe-inline у стилей нужен
+		# библиотекам, которые ставят style="" прямо на элемент (тосты).
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		# Браузер не должен угадывать тип файла по содержимому
+		X-Content-Type-Options "nosniff"
+		# Наружу не утекают адреса внутренних страниц
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Камеру, микрофон и прочее приложение не просит — и не сможет
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+
+	# Имена собранных ассетов содержат хеш содержимого: меняется файл — меняется
+	# имя, поэтому старую версию можно кэшировать сколько угодно.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	# index.html, наоборот, обязан приезжать свежим — иначе после деплоя браузер
+	# будет просить исчезнувшие ассеты.
+	@html path / /index.html
+	header @html Cache-Control "no-cache"
+
+	reverse_proxy app:8080
+}

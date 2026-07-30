@@ -1,0 +1,89 @@
+# Прод одним файлом: Caddy (автоматический TLS) + приложение + Postgres +
+# ежесуточный бэкап. Запуск на сервере:
+#   cp .env.prod.example .env.prod   # и заполнить
+#   docker compose -f compose.prod.yaml --env-file .env.prod up -d --build
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+
+  app:
+    build:
+      context: .
+      args:
+        # docker compose ... --build с GIT_SHA=$(git rev-parse --short HEAD)
+        GIT_SHA: ${GIT_SHA:-unknown}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/app
+      JWT_SECRET: ${JWT_SECRET}
+      PUBLIC_URL: https://${DOMAIN}
+      COOKIE_SECURE: "true"
+      LOG_FORMAT: json
+      # пусто — письма остаются в outbox_emails (см. .env.prod.example)
+      SMTP_URL: ${SMTP_URL:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      # перед приложением стоит наш Caddy — его X-Forwarded-For можно верить
+      TRUST_PROXY: "true"
+    # Caddy не начнёт пускать трафик, пока приложение не ответит на /ready
+    healthcheck:
+      test: ["CMD", "api", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: app
+    # postgres:18 хранит данные в /var/lib/postgresql (не .../data)
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # Ежесуточный pg_dump, храним последние 7 архивов.
+  # Восстановление: gunzip -c app-ДАТА.sql.gz | psql -h db -U postgres app
+  backup:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c 'while true; do
+        pg_dump -h db -U postgres app | gzip > /backups/app-$$(date +%F).sql.gz
+        && ls -1t /backups/app-*.sql.gz | tail -n +8 | xargs -r rm;
+        sleep 86400;
+      done'
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pgdata:
+  backups:

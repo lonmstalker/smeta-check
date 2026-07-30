@@ -1,0 +1,7 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Робот приносит PR с обновлениями cargo/npm, CI их проверяет",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "schedule": ["before 8am on monday"],
+  "timezone": "Europe/Moscow"
+}

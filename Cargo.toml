@@ -1,0 +1,44 @@
+[workspace]
+members = ["server"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+
+# Ноутбук собирает только dev-инкрементал; release с LTO делает CI/Docker.
+[profile.dev]
+debug = "line-tables-only"
+
+# argon2 без оптимизации хеширует пароль ~секунду: каждый тест с логином
+# платил бы этот налог. Оптимизируем только этот пакет, остальное — как есть.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+strip = true
+
+# Выборочная таблица линтов: не «весь pedantic», а конкретные запреты, каждый
+# из которых ловил реальную ошибку в проде. Обход — локальный #[expect(...)]
+# с обязательной причиной.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# «на потом» и отладочный мусор не доезжают до main
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+# паника в хендлере = 500 без объяснений; ошибки обрабатываем или пробрасываем
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+# вывод — только через tracing (у CLI-бинарей локальное исключение)
+print_stdout = "deny"
+print_stderr = "deny"
+# каждое подавление линта объясняется словами
+allow_attributes_without_reason = "deny"
+# async без единого await — обычно забытый рефакторинг
+unused_async = "deny"
+# `use foo::*` прячет, откуда взялось имя
+wildcard_imports = "deny"

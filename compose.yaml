@@ -1,0 +1,31 @@
+services:
+  # Локальный SMTP с веб-ящиком для ручной проверки писем (make dev-mail,
+  # ящик: http://localhost:8025). Тестам не нужен — они читают outbox.
+  mailpit:
+    image: axllent/mailpit
+    pull_policy: missing
+    profiles: [mail]
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  db:
+    image: postgres:18-alpine
+    # не ходить в registry, если образ уже скачан (иначе up виснет без сети)
+    pull_policy: missing
+    environment:
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: app
+    ports:
+      - "5432:5432"
+    # ponytail: tmpfs — дев-база живёт в RAM, быстро и не ест диск;
+    # замените на volume, если нужны данные между перезапусками.
+    # Внимание: с postgres:18 данные лежат в /var/lib/postgresql (не .../data)
+    tmpfs:
+      - /var/lib/postgresql
+    shm_size: 128mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
