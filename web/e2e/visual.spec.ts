@@ -16,14 +16,30 @@ const USER = {
   totp_enabled: false,
 }
 
-const ITEMS = {
-  items: [
-    { id: 1, title: 'Первая запись' },
-    { id: 2, title: 'Вторая запись' },
-    { id: 3, title: 'Третья запись' },
-  ],
-  next_cursor: null,
-}
+const ESTIMATES = [
+  {
+    id: '00000000-0000-0000-0000-0000000000e1',
+    file_name: 'Смета бригады.xlsx',
+    size_bytes: 15403,
+    status: 'parsed',
+    created_at: '2026-07-20T10:00:00Z',
+  },
+  {
+    id: '00000000-0000-0000-0000-0000000000e2',
+    file_name: 'Смета от соседей.xls',
+    size_bytes: 34816,
+    status: 'parsing',
+    created_at: '2026-07-19T09:00:00Z',
+  },
+  {
+    id: '00000000-0000-0000-0000-0000000000e3',
+    file_name: 'Фото сметы.xlsx',
+    size_bytes: 2048,
+    status: 'failed',
+    error: 'Файл не открылся как таблица Excel — пришлите смету заново',
+    created_at: '2026-07-18T08:00:00Z',
+  },
+]
 
 const SESSIONS = [
   {
@@ -53,7 +69,7 @@ async function stubApi(page: Page, { authed }: { authed: boolean }) {
         ? json({ access_token: 'visual-token', user: USER })
         : json({ error: { code: 'unauthorized', message: 'нет сессии' } }, 401)
     }
-    if (pathname === '/api/items') return json(ITEMS)
+    if (pathname === '/api/estimates') return json(ESTIMATES)
     if (pathname === '/api/auth/sessions') return json(SESSIONS)
     // незастабленный путь показывает ошибку страницы — её видно на скриншоте
     return json({ error: { code: 'visual_stub_missing', message: pathname } }, 500)
@@ -67,11 +83,11 @@ test('вход: форма и кнопки провайдеров', async ({ pag
   await expect(page).toHaveScreenshot('login.png', { fullPage: true })
 })
 
-test('главная: список записей и форма добавления', async ({ page }) => {
+test('главная: список смет и форма загрузки', async ({ page }) => {
   await stubApi(page, { authed: true })
   await page.goto('/')
-  await expect(page.getByText('Третья запись')).toBeVisible()
-  await expect(page).toHaveScreenshot('items.png', { fullPage: true })
+  await expect(page.getByText('Смета от соседей.xls')).toBeVisible()
+  await expect(page).toHaveScreenshot('estimates.png', { fullPage: true })
 })
 
 test('настройки: все разделы и список устройств', async ({ page }) => {

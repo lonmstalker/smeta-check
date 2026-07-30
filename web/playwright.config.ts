@@ -2,6 +2,9 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
+  // скриншоты — отдельный слой со своим конфигом (playwright.visual.config.ts):
+  // здесь они сравнивались бы с эталонами другой ОС и другого размера окна
+  testIgnore: 'visual.spec.ts',
   // Таймауты на всех уровнях: зависший тест или сервер убиваются, ничего не
   // остаётся жить в фоне (globalTimeout — жёсткий потолок всего прогона).
   timeout: 30_000,

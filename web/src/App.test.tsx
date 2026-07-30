@@ -9,50 +9,85 @@ afterEach(() => {
   setAccessToken(null)
 })
 
-test('гость не видит чужих записей, а видит приглашение войти', async () => {
-  guestApi({
-    '/api/items': () => ({ items: [{ id: 1, title: 'Первая запись' }] }),
-  })
+const ESTIMATE = {
+  id: '00000000-0000-0000-0000-0000000000e1',
+  file_name: 'Смета бригады.xlsx',
+  size_bytes: 15403,
+  status: 'parsed',
+  created_at: '2026-07-30T10:00:00Z',
+}
+
+const DETAILS = {
+  ...ESTIMATE,
+  lines: [
+    {
+      position: 0,
+      sheet: 'Смета',
+      raw_text: 'Штукатурка стен | кв.м. | 12 | 740 | 8880',
+      title: 'Штукатурка стен',
+      unit: 'кв.м.',
+      quantity: 12,
+      price: 740,
+      total: 8880,
+    },
+    {
+      position: 1,
+      sheet: 'Смета',
+      raw_text: 'Что-то непонятное из середины файла',
+      title: null,
+      unit: null,
+      quantity: null,
+      price: null,
+      total: null,
+    },
+  ],
+}
+
+test('гость не видит чужих смет, а видит приглашение войти', async () => {
+  guestApi({ '/api/estimates': () => [ESTIMATE] })
   renderApp(<App />)
-  expect(await screen.findByText('Чтобы добавлять записи, войдите в систему')).toBeInTheDocument()
-  expect(screen.queryByText('Первая запись')).not.toBeInTheDocument()
+  expect(await screen.findByText('Чтобы загрузить смету, войдите')).toBeInTheDocument()
+  expect(screen.queryByText('Смета бригады.xlsx')).not.toBeInTheDocument()
 })
 
-test('вошедший видит свои записи', async () => {
+test('вошедший видит свои сметы и их состояние', async () => {
   authedApi({
-    '/api/items': () => ({ items: [{ id: 1, title: 'Первая запись' }] }),
+    '/api/estimates': () => [
+      ESTIMATE,
+      { ...ESTIMATE, id: 'e2', file_name: 'Вторая.xlsx', status: 'parsing' },
+    ],
   })
   renderApp(<App />)
-  expect(await screen.findByText('Первая запись')).toBeInTheDocument()
-  // 1 — единственное число: «запись», не «записей»
-  expect(await screen.findByText('1 запись')).toBeInTheDocument()
+  expect(await screen.findByText('Смета бригады.xlsx')).toBeInTheDocument()
+  expect(screen.getByText('Разобрана')).toBeInTheDocument()
+  expect(screen.getByText('Разбираем')).toBeInTheDocument()
 })
 
-test('склонения работают: 5 записей', async () => {
+test('смета, которую не смогли прочитать, объясняет причину', async () => {
   authedApi({
-    '/api/items': () => ({
-      items: [1, 2, 3, 4, 5].map((id) => ({ id, title: `Запись ${id}` })),
-    }),
+    '/api/estimates': () => [
+      { ...ESTIMATE, status: 'failed', error: 'Файл не открылся как таблица Excel' },
+    ],
   })
   renderApp(<App />)
-  expect(await screen.findByText('5 записей')).toBeInTheDocument()
+  expect(await screen.findByText('Файл не открылся как таблица Excel')).toBeInTheDocument()
+  // у неразобранной сметы нечего показывать
+  expect(screen.queryByRole('button', { name: 'Показать строки' })).not.toBeInTheDocument()
 })
 
-test('кнопка «Показать ещё» подгружает следующую страницу', async () => {
-  // одна ручка, разные страницы: первая — с курсором, вторая — последняя
-  let call = 0
+test('строки сметы открываются по кнопке, непонятое показано отдельно', async () => {
   authedApi({
-    '/api/items': () =>
-      call++ === 0
-        ? { items: [{ id: 1, title: 'Старая запись' }], next_cursor: 1 }
-        : { items: [{ id: 2, title: 'Новая запись' }] },
+    '/api/estimates': () => [ESTIMATE],
+    [`/api/estimates/${ESTIMATE.id}`]: () => DETAILS,
   })
   renderApp(<App />)
-  expect(await screen.findByText('Старая запись')).toBeInTheDocument()
+  fireEvent.click(await screen.findByRole('button', { name: 'Показать строки' }))
 
-  fireEvent.click(screen.getByRole('button', { name: 'Показать ещё' }))
-  expect(await screen.findByText('Новая запись')).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Показать ещё' })).not.toBeInTheDocument()
+  expect(await screen.findByText('Штукатурка стен')).toBeInTheDocument()
+  // 1 — единственное число: «работа», не «работ»
+  expect(screen.getByText('Распознана 1 работа')).toBeInTheDocument()
+  expect(screen.getByText('Спросите бригаду, что это за строки')).toBeInTheDocument()
+  expect(screen.getByText('Что-то непонятное из середины файла')).toBeInTheDocument()
 })
 
 test('неизвестный адрес показывает страницу 404', async () => {

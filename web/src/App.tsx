@@ -12,7 +12,7 @@ import LoginPage from '@/pages/auth/LoginPage'
 import RegisterPage from '@/pages/auth/RegisterPage'
 import ResetPage from '@/pages/auth/ResetPage'
 import VerifyEmailPage from '@/pages/auth/VerifyEmailPage'
-import ItemsPage from '@/pages/ItemsPage'
+import EstimatesPage from '@/pages/EstimatesPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import SettingsPage from '@/pages/SettingsPage'
 
@@ -35,7 +35,7 @@ export default function App() {
         <ErrorBoundary>
           <AppShell>
             <Routes>
-              <Route path="/" element={<ItemsPage />} />
+              <Route path="/" element={<EstimatesPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/forgot" element={<ForgotPage />} />

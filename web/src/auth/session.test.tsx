@@ -27,12 +27,22 @@ const first = {
 }
 const second = { ...first, id: 'u2', email: 'second@test.local' }
 
+function estimate(name: string) {
+  return {
+    id: `est-${name}`,
+    file_name: name,
+    size_bytes: 1024,
+    status: 'uploaded',
+    created_at: '2026-07-30T10:00:00Z',
+  }
+}
+
 test('после смены пользователя список берётся заново, а не из чужого кэша', async () => {
-  // записи личные: у каждого пользователя свой список за одним и тем же ключом
+  // сметы личные: у каждого пользователя свой список за одним и тем же ключом
   let current = first
   mockApi({
     '/api/auth/refresh': () => ({ access_token: 'token', user: current }),
-    '/api/items': () => ({ items: [{ id: 1, title: `Запись ${current.id}` }] }),
+    '/api/estimates': () => [estimate(`Смета ${current.id}.xlsx`)],
     '/api/auth/logout': () => new Response(null, { status: 204 }),
     '/api/auth/login': () => {
       current = second
@@ -40,7 +50,7 @@ test('после смены пользователя список берётся
     },
   })
   renderApp(<App />)
-  expect(await screen.findByText('Запись u1')).toBeInTheDocument()
+  expect(await screen.findByText('Смета u1.xlsx')).toBeInTheDocument()
 
   fireEvent.click(screen.getByRole('button', { name: 'Выйти' }))
   // после выхода попадаем на главную для гостя — оттуда на страницу входа
@@ -51,25 +61,25 @@ test('после смены пользователя список берётся
   fireEvent.change(screen.getByPlaceholderText('Пароль'), { target: { value: 'correct-horse-9' } })
   fireEvent.click(screen.getByRole('button', { name: 'Войти' }))
 
-  expect(await screen.findByText('Запись u2')).toBeInTheDocument()
-  expect(screen.queryByText('Запись u1')).not.toBeInTheDocument()
+  expect(await screen.findByText('Смета u2.xlsx')).toBeInTheDocument()
+  expect(screen.queryByText('Смета u1.xlsx')).not.toBeInTheDocument()
 })
 
 test('пока сессия восстанавливается, вошедшему не мигает приглашение войти', () => {
   mockApi({
     // ответ не приходит: интерфейс должен молчать, а не звать войти
     '/api/auth/refresh': () => new Promise(() => {}) as unknown as Response,
-    '/api/items': () => ({ items: [] }),
+    '/api/estimates': () => [],
   })
   renderApp(<App />)
 
-  expect(screen.queryByText('Чтобы добавлять записи, войдите в систему')).not.toBeInTheDocument()
+  expect(screen.queryByText('Чтобы загрузить смету, войдите')).not.toBeInTheDocument()
 })
 
 test('вход с двухфакторной защитой спрашивает код', async () => {
   mockApi({
     '/api/auth/refresh': () => unauthorized(),
-    '/api/items': () => ({ items: [] }),
+    '/api/estimates': () => [],
     '/api/auth/login': () => ({ requires_2fa: true, pending_token: 'pending-1' }),
     '/api/auth/2fa/verify': () => ({ access_token: 'token', user: second }),
   })
@@ -91,7 +101,7 @@ test('вход с двухфакторной защитой спрашивает
 test('после входа через провайдера с 2FA страница входа сразу просит код', async () => {
   mockApi({
     '/api/auth/refresh': () => unauthorized(),
-    '/api/items': () => ({ items: [] }),
+    '/api/estimates': () => [],
   })
   // бэк вернул нас на /login с pending-токеном во фрагменте адреса
   renderApp(<App />, { route: '/login#pending=from-oauth' })
@@ -105,16 +115,17 @@ test('отозванная сессия разлогинивает интерф�
   mockApi({
     '/api/auth/refresh': () =>
       sessionAlive ? { access_token: 'token', user: second } : unauthorized(),
-    '/api/items': (_url, init) =>
-      init?.method === 'POST' && !sessionAlive ? unauthorized() : { items: [] },
+    '/api/estimates': (_url, init) =>
+      init?.method === 'POST' && !sessionAlive ? unauthorized() : [],
   })
   renderApp(<App />)
   expect(await screen.findByRole('button', { name: 'Выйти' })).toBeInTheDocument()
 
   // сессию отозвали на сервере: и запрос, и обновление токена дают 401
   sessionAlive = false
-  fireEvent.change(screen.getByPlaceholderText('Название'), { target: { value: 'Заметка' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Создать' }))
+  const file = new File(['x'], 'smeta.xlsx')
+  fireEvent.change(screen.getByLabelText('Файл сметы'), { target: { files: [file] } })
+  fireEvent.click(screen.getByRole('button', { name: 'Загрузить' }))
 
   // шапка перестала показывать вошедшего — интерфейс сам вышел
   await waitFor(() =>

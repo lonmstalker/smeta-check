@@ -7,6 +7,9 @@ export type TokenResponse = components['schemas']['TokenResponse']
 export type LoginResponse = components['schemas']['LoginResponse']
 export type Item = components['schemas']['Item']
 export type ItemsPage = components['schemas']['ItemsPage']
+export type Estimate = components['schemas']['Estimate']
+export type EstimateDetails = components['schemas']['EstimateDetails']
+export type EstimateLine = components['schemas']['EstimateLine']
 export type TotpSetupResponse = components['schemas']['TotpSetupResponse']
 export type FieldError = components['schemas']['FieldError']
 export type SessionInfo = components['schemas']['SessionInfo']
@@ -38,13 +41,16 @@ export function fieldError(error: unknown, field: string): string | undefined {
 }
 
 async function rawRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
+  // файл уходит как FormData: content-type с границей проставит сам браузер,
+  // а тело не сериализуется в JSON
+  const isForm = body instanceof FormData
   const res = await fetch(path, {
     method,
     headers: {
-      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+      ...(body !== undefined && !isForm ? { 'content-type': 'application/json' } : {}),
       ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   })
   if (res.status === 204) return undefined as T
   const json = await res.json().catch(() => null)
@@ -113,6 +119,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
+  /** отправка файла: `postForm('/api/estimates', formDataWithFile)` */
+  postForm: <T>(path: string, form: FormData) => request<T>('POST', path, form),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),
 }
