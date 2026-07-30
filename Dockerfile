@@ -17,6 +17,11 @@ RUN pnpm build
 
 # Итог: один процесс, ~15-30 MB RSS — хватит самого дешёвого VPS
 FROM debian:bookworm-slim
+# корневые сертификаты: reqwest (обмен кода OAuth, healthcheck) проверяет TLS
+# по системному хранилищу — без них исходящий HTTPS в контейнере не работает
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=server-build /app/target/release/api /usr/local/bin/api
 # операторские команды (docker compose exec app ops ...)
