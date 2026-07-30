@@ -24,6 +24,14 @@ error-name-long = Name must be at most { $max } characters
 error-unknown-locale = Unknown language
 error-oauth-not-configured = Sign-in via { $provider } is not configured
 error-oauth-failed = Failed to sign in via { $provider }
+error-estimate-no-file = No file received — attach the estimate and try again
+error-estimate-format = For now we only accept Excel: xlsx and xls files
+error-estimate-empty = The file is empty — check that the estimate was saved
+error-estimate-too-large = The file is larger than { $max } MB — send the estimate without extra images
+error-estimate-limit = For now you can keep at most { $max } { $max ->
+        [one] estimate
+       *[other] estimates
+    }
 
 email-verify-subject = Confirm your email address
 email-verify-body = To confirm your address, open the link: { $link }

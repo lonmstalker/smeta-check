@@ -37,6 +37,11 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       # перед приложением стоит наш Caddy — его X-Forwarded-For можно верить
       TRUST_PROXY: "true"
+      FILES_DIR: /app/data/files
+    # у приложения появилось состояние на диске: загруженные сметы обязаны
+    # пережить пересборку контейнера
+    volumes:
+      - files:/app/data/files
     # Caddy не начнёт пускать трафик, пока приложение не ответит на /ready
     healthcheck:
       test: ["CMD", "api", "healthcheck"]
@@ -87,3 +92,4 @@ volumes:
   caddy_config:
   pgdata:
   backups:
+  files:

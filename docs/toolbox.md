@@ -11,11 +11,13 @@
 | `config.rs` | `Settings::from_env()` — ВСЯ конфигурация одним объектом (единственное место, где читается окружение); `Settings::for_tests()`; тип `Secret` (не печатается в логах); `OauthProvider` |
 | `db.rs` | `connect(url)` — пул; `MIGRATIONS` — миграции sqlx |
 | `health.rs` | `router()` — `/api/health/{live,ready}` и `/api/version` |
-| `error.rs` | `ApiError` — единая ошибка API с ключом локализации: `validation/unauthorized/forbidden/not_found/conflict/too_many_requests`, `.arg(name, value)` для подстановок, `.field("password")` — привязать к полю формы; `From<anyhow>` → 500 без деталей наружу |
+| `error.rs` | `ApiError` — единая ошибка API с ключом локализации: `validation/unauthorized/forbidden/not_found/conflict/too_large/too_many_requests`, `.arg(name, value)` для подстановок, `.field("password")` — привязать к полю формы; `From<anyhow>` → 500 без деталей наружу |
 | `i18n.rs` | `translate(lang, key, args)`, `current_lang()`, `lang_middleware` (язык из Accept-Language), `message_keys(lang)` — для тестов полноты словарей |
 | `telemetry.rs` | `init_tracing()`, `init_metrics()`, `track_http` (лог+метрики каждого запроса), `request_id_layer()`, `REQUEST_ID_HEADER` |
 | `mailer.rs` | `send(pool, to, subject, body)` — ЕДИНСТВЕННАЯ точка отправки писем (кладёт в outbox-очередь) |
 | `rate_limit.rs` | `limit_per_ip(router, rpm, trust_proxy)` — лимит запросов по IP на группу маршрутов |
+| `storage.rs` | `save(dir, name, bytes)` / `read(dir, name)` — файлы пользователей на диске (`Settings::files_dir`); имя собирает домен из id записи |
+| `time.rs` | `rfc3339(OffsetDateTime)` — время для ответов API (UTC, форматирует браузер) |
 
 ## Бэкенд: `server/src/jobs.rs` (фоновый воркер приложения)
 
@@ -37,6 +39,7 @@
 | `auth/sessions.rs` | `issue/refresh/logout`, `revoke_all/revoke/revoke_others`, `list` (что видит пользователь), `describe_client(ua)` — «Chrome, macOS» вместо сырого User-Agent |
 | `auth/account.rs` | `change_password`, `request_email_change/confirm_email_change` — обе операции требуют текущий пароль |
 | `users/mod.rs` | `update_profile` (NULL = не менять), `set_email`, `set_role_by_email` |
+| `estimates/mod.rs` | сметы: `create/list/get/count_of` (все с владельцем), `extension_of` (только xlsx/xls), `stored_name(id, ext)`, `clean_file_name`, потолки `MAX_FILE_BYTES`/`MAX_PER_USER` |
 | `items/mod.rs` | образец row-level authorization: все функции принимают владельца и фильтруют по нему прямо в SQL |
 | `lib.rs` | `AppState` (пул + `Arc<Settings>`); хендлеру нужен пул — `State<PgPool>`, нужна настройка — `State<Arc<Settings>>` |
 
@@ -46,6 +49,9 @@
 `get/get_auth/post/post_auth/patch_auth/delete_auth/request` (произвольные
 заголовки), `register_user()`, `promote_to_admin(email)`,
 `refresh_token_of(res)`, `last_email_to(recipient)` (читает outbox);
+`post_file(path, file_name, bytes, token)` — загрузка файла (тело multipart
+собирается внутри), `files_dir` — каталог файлов этого теста (стирается сам);
+`fixture(name)` — настоящая смета из `tests/fixtures/estimates`;
 константа `PASSWORD`. Нужны другие настройки — `spawn_app_with(|s| ...)`:
 окружение процесса тесты не трогают.
 

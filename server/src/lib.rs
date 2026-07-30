@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod core;
+pub mod estimates;
 pub mod items;
 pub mod jobs;
 pub mod users;
@@ -19,10 +20,12 @@ use utoipa::{Modify, OpenApi};
 use crate::core::config::Settings;
 
 /// Запрос, который не уложился в это время, уже никому не нужен: клиент ушёл,
-/// а соединение и поток БД всё ещё заняты.
+/// а соединение и поток БД всё ещё заняты. У загрузки файла таймаут свой —
+/// поэтому этот слой висит на всех маршрутах, КРОМЕ неё (см. `app`).
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
-/// Тело больше мегабайта у нас появиться неоткуда — файлов мы не принимаем
+/// Тело больше мегабайта у нас появиться неоткуда: единственный маршрут с
+/// файлом — загрузка сметы, и у неё свой потолок
 const BODY_LIMIT_BYTES: usize = 1024 * 1024;
 
 /// Логам фронта хватает и этого: ручка открыта без входа
@@ -52,22 +55,28 @@ impl FromRef<AppState> for Arc<Settings> {
 /// Всё HTTP-приложение: домены + сквозные слои (request-id, логи+метрики, язык)
 pub fn app(state: AppState) -> Router {
     let settings = state.settings.clone();
-    let mut router = Router::new()
+    // Всё, кроме загрузки файла: общий потолок тела и общий таймаут. Слои
+    // навешиваются здесь, а не на всё приложение, потому что снаружи их уже
+    // не снять: вложенный таймаут не может быть длиннее внешнего.
+    let common = Router::new()
         .merge(auth::http::router(&settings))
         .merge(users::http::router())
         .merge(items::http::router())
+        .merge(estimates::http::router())
         .merge(core::health::router())
         .merge(frontend_log_router(&settings))
         .route(
             "/api/openapi.json",
             get(|| async { Json(ApiDoc::openapi()) }),
         )
-        .with_state(state)
         .layer(DefaultBodyLimit::max(BODY_LIMIT_BYTES))
         .layer(tower_http::timeout::TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,
             REQUEST_TIMEOUT,
-        ))
+        ));
+    let mut router = common
+        .merge(estimates::http::upload_router(&settings))
+        .with_state(state)
         .layer(middleware::from_fn(core::i18n::lang_middleware))
         .layer(middleware::from_fn(core::telemetry::track_http))
         .layer(core::telemetry::request_id_layer());
@@ -155,6 +164,9 @@ async fn frontend_log(Json(log): Json<FrontendLog>) -> StatusCode {
         items::http::list_items,
         items::http::create_item,
         items::http::delete_item,
+        estimates::http::upload_estimate,
+        estimates::http::list_estimates,
+        estimates::http::get_estimate,
     )
 )]
 pub struct ApiDoc;

@@ -7,6 +7,7 @@
 #[allow(
     clippy::unwrap_used,
     clippy::expect_used,
+    clippy::panic,
     reason = "тестовая инфраструктура: паника хелпера валит тест — это и есть отчёт об ошибке"
 )]
 mod common;
@@ -18,6 +19,7 @@ mod auth_recovery;
 mod auth_totp;
 mod auth_verify;
 mod contract;
+mod estimates;
 mod hardening;
 mod i18n;
 mod items;

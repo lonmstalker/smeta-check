@@ -5,4 +5,6 @@ pub mod health;
 pub mod i18n;
 pub mod mailer;
 pub mod rate_limit;
+pub mod storage;
 pub mod telemetry;
+pub mod time;

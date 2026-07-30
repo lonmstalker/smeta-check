@@ -538,6 +538,145 @@
         }
       }
     },
+    "/api/estimates": {
+      "get": {
+        "tags": [
+          "estimates"
+        ],
+        "operationId": "list_estimates",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Estimate"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "estimates"
+        ],
+        "operationId": "upload_estimate",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Estimate"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "413": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/estimates/{id}": {
+      "get": {
+        "tags": [
+          "estimates"
+        ],
+        "operationId": "get_estimate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Estimate"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/health/live": {
       "get": {
         "tags": [
@@ -905,6 +1044,39 @@
           }
         }
       },
+      "Estimate": {
+        "type": "object",
+        "description": "Смета глазами пользователя",
+        "required": [
+          "id",
+          "file_name",
+          "size_bytes",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "description": "RFC 3339 в UTC; в местное время переводит браузер"
+          },
+          "file_name": {
+            "type": "string",
+            "description": "имя файла, как его назвал сам пользователь"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "description": "uploaded — принята, parsing — разбирается, parsed — разобрана,\nfailed — разобрать не смогли"
+          }
+        }
+      },
       "FieldError": {
         "type": "object",
         "required": [
@@ -1142,6 +1314,20 @@
               "null"
             ],
             "description": "язык интерфейса и писем: \"ru\" или \"en\""
+          }
+        }
+      },
+      "UploadForm": {
+        "type": "object",
+        "description": "Тело загрузки описано руками: генератор спеки не умеет выводить\nmultipart с файлом из сигнатуры хендлера.",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "файл сметы: xlsx или xls, до 10 МиБ"
           }
         }
       },

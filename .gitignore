@@ -1,4 +1,6 @@
 /target
+# FILES_DIR по умолчанию: загруженные сметы локального запуска
+/data
 /mutants.out*
 /web/.stryker-tmp
 /web/reports

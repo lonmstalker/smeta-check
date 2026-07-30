@@ -31,7 +31,19 @@ pub const PASSWORD: &str = "correct-horse-9";
 pub struct TestApp {
     pub router: Router,
     pub pool: PgPool,
+    /// каталог файлов этого теста; удаляется вместе с TestApp
+    pub files_dir: std::path::PathBuf,
     _container: Option<ContainerAsync<Postgres>>,
+    _files: tempfile::TempDir,
+}
+
+/// Тестовая смета из `server/tests/fixtures/estimates` — настоящие файлы
+/// из открытых источников (README рядом с ними)
+pub fn fixture(name: &str) -> Vec<u8> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/estimates")
+        .join(name);
+    std::fs::read(&path).unwrap_or_else(|err| panic!("нет фикстуры {path:?}: {err}"))
 }
 
 /// Приложение на чистой БД — одна строка в начале каждого теста
@@ -43,6 +55,9 @@ pub async fn spawn_app() -> TestApp {
 /// поэтому тесты не мешают друг другу.
 pub async fn spawn_app_with(tune: impl FnOnce(&mut Settings)) -> TestApp {
     let mut settings = Settings::for_tests();
+    // файлы теста живут в своём временном каталоге: TempDir сотрёт его сам
+    let files = tempfile::TempDir::new().expect("temp dir for files");
+    settings.files_dir = files.path().to_path_buf();
     tune(&mut settings);
     let (pool, container) = match std::env::var("TEST_PG_URL").ok().filter(|u| !u.is_empty()) {
         Some(url) => (fresh_db_on_server(&url).await, None),
@@ -61,7 +76,9 @@ pub async fn spawn_app_with(tune: impl FnOnce(&mut Settings)) -> TestApp {
             settings: Arc::new(settings),
         }),
         pool,
+        files_dir: files.path().to_path_buf(),
         _container: container,
+        _files: files,
     }
 }
 
@@ -138,6 +155,42 @@ impl TestApp {
         let request = builder
             .body(body.map_or(Body::empty(), |b| Body::from(b.to_string())))
             .unwrap();
+        self.send(request).await
+    }
+
+    /// Загрузка файла: тело multipart собирается руками — ради двух границ и
+    /// одного заголовка тащить крейт-построитель незачем
+    pub async fn post_file(
+        &self,
+        path: &str,
+        file_name: &str,
+        content: &[u8],
+        token: &str,
+    ) -> TestResponse {
+        const BOUNDARY: &str = "smeta-check-test-boundary";
+        let mut body = Vec::new();
+        body.extend_from_slice(format!("--{BOUNDARY}\r\n").as_bytes());
+        body.extend_from_slice(
+            format!("Content-Disposition: form-data; name=\"file\"; filename=\"{file_name}\"\r\n")
+                .as_bytes(),
+        );
+        body.extend_from_slice(b"Content-Type: application/octet-stream\r\n\r\n");
+        body.extend_from_slice(content);
+        body.extend_from_slice(format!("\r\n--{BOUNDARY}--\r\n").as_bytes());
+        let request = Request::builder()
+            .method("POST")
+            .uri(path)
+            .header(
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={BOUNDARY}"),
+            )
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(body))
+            .unwrap();
+        self.send(request).await
+    }
+
+    async fn send(&self, request: Request<Body>) -> TestResponse {
         let response = self.router.clone().oneshot(request).await.unwrap();
         let status = response.status();
         let cookies = response

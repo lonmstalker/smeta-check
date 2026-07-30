@@ -51,6 +51,12 @@ impl ApiError {
         Self::new(StatusCode::CONFLICT, key)
     }
 
+    /// Файл больше разрешённого. Отдельный статус нужен, чтобы клиент отличал
+    /// «слишком большой» от «неверный формат» без разбора текста.
+    pub fn too_large(key: &'static str) -> Self {
+        Self::new(StatusCode::PAYLOAD_TOO_LARGE, key)
+    }
+
     pub fn too_many_requests() -> Self {
         Self::new(StatusCode::TOO_MANY_REQUESTS, "error-too-many-requests")
     }

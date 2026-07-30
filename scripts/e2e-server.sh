@@ -13,9 +13,14 @@ docker compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE 
 (cd web && pnpm build)
 cargo build --bin api
 
+# файлы стенда живут в target: он и так не в git, и чистится вместе со сборкой
+rm -rf target/e2e-files
+
 DATABASE_URL=postgres://postgres:dev@localhost:5432/e2e \
 JWT_SECRET=e2e-secret-not-for-prod \
 METRICS_ADDR=127.0.0.1:0 \
 RATE_LIMIT_AUTH_RPM=0 \
+RATE_LIMIT_UPLOAD_RPM=0 \
+FILES_DIR=target/e2e-files \
 PUBLIC_URL=http://localhost:8081 \
 PORT=8081 exec ./target/debug/api

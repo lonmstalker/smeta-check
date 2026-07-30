@@ -25,6 +25,14 @@ error-name-long = Имя не длиннее { $max } символов
 error-unknown-locale = Такого языка нет
 error-oauth-not-configured = Вход через { $provider } не настроен
 error-oauth-failed = Не удалось войти через { $provider }
+error-estimate-no-file = Файл не получен — приложите смету и попробуйте ещё раз
+error-estimate-format = Пока принимаем только Excel: файлы xlsx и xls
+error-estimate-empty = Файл пустой — проверьте, что смета сохранилась
+error-estimate-too-large = Файл больше { $max } МБ — пришлите смету без лишних картинок
+error-estimate-limit = Пока можно хранить не больше { $max } { $max ->
+        [one] сметы
+       *[other] смет
+    }
 
 email-verify-subject = Подтвердите адрес почты
 email-verify-body = Чтобы подтвердить адрес, откройте ссылку: { $link }

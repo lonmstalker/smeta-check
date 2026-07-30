@@ -260,6 +260,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/estimates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_estimates"];
+        put?: never;
+        post: operations["upload_estimate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/estimates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_estimate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health/live": {
         parameters: {
             query?: never;
@@ -394,6 +426,22 @@ export interface components {
             /** @description текст на языке запроса — можно показывать пользователю как есть */
             message: string;
         };
+        /** @description Смета глазами пользователя */
+        Estimate: {
+            /** @description RFC 3339 в UTC; в местное время переводит браузер */
+            created_at: string;
+            /** @description имя файла, как его назвал сам пользователь */
+            file_name: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            size_bytes: number;
+            /**
+             * @description uploaded — принята, parsing — разбирается, parsed — разобрана,
+             *     failed — разобрать не смогли
+             */
+            status: string;
+        };
         FieldError: {
             code: string;
             /** @description имя поля в теле запроса, например "password" */
@@ -468,6 +516,17 @@ export interface components {
             display_name?: string | null;
             /** @description язык интерфейса и писем: "ru" или "en" */
             locale?: string | null;
+        };
+        /**
+         * @description Тело загрузки описано руками: генератор спеки не умеет выводить
+         *     multipart с файлом из сигнатуры хендлера.
+         */
+        UploadForm: {
+            /**
+             * Format: binary
+             * @description файл сметы: xlsx или xls, до 10 МиБ
+             */
+            file: string;
         };
         User: {
             /** @description как обращаться к пользователю; не задано — показываем почту */
@@ -960,6 +1019,117 @@ export interface operations {
                 content?: never;
             };
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_estimates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Estimate"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    upload_estimate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadForm"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_estimate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

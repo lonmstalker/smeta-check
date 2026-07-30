@@ -9,7 +9,6 @@
 
 use serde::Serialize;
 use sqlx::PgPool;
-use time::format_description::well_known::Rfc3339;
 use time::{Duration, OffsetDateTime};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -18,6 +17,7 @@ use super::{hash_token, new_raw_token};
 use crate::auth::jwt;
 use crate::core::config::Secret;
 use crate::core::error::ApiError;
+use crate::core::time::rfc3339;
 use crate::users::{self, UserRecord};
 
 pub const REFRESH_TTL_DAYS: i64 = 30;
@@ -216,10 +216,6 @@ pub async fn revoke_others(
     .execute(pool)
     .await?;
     Ok(result.rows_affected())
-}
-
-fn rfc3339(at: OffsetDateTime) -> String {
-    at.format(&Rfc3339).unwrap_or_default()
 }
 
 /// Короткое описание клиента для списка сессий: «Chrome, macOS».
