@@ -22,5 +22,6 @@ METRICS_ADDR=127.0.0.1:0 \
 RATE_LIMIT_AUTH_RPM=0 \
 RATE_LIMIT_UPLOAD_RPM=0 \
 FILES_DIR=target/e2e-files \
+WORKER_TICK_SECS=1 \
 PUBLIC_URL=http://localhost:8081 \
 PORT=8081 exec ./target/debug/api

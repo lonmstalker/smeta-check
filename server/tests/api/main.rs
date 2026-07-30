@@ -20,6 +20,7 @@ mod auth_totp;
 mod auth_verify;
 mod contract;
 mod estimates;
+mod estimates_parse;
 mod hardening;
 mod i18n;
 mod items;

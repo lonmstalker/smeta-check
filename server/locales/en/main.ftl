@@ -28,6 +28,9 @@ error-estimate-no-file = No file received — attach the estimate and try again
 error-estimate-format = For now we only accept Excel: xlsx and xls files
 error-estimate-empty = The file is empty — check that the estimate was saved
 error-estimate-too-large = The file is larger than { $max } MB — send the estimate without extra images
+error-estimate-unreadable = The file did not open as an Excel sheet — please send the estimate again
+error-estimate-no-data = The file has no filled rows
+error-estimate-too-big = The file has too many sheets or rows for an estimate
 error-estimate-limit = For now you can keep at most { $max } { $max ->
         [one] estimate
        *[other] estimates

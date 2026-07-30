@@ -658,7 +658,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Estimate"
+                  "$ref": "#/components/schemas/EstimateDetails"
                 }
               }
             }
@@ -1059,6 +1059,13 @@
             "type": "string",
             "description": "RFC 3339 в UTC; в местное время переводит браузер"
           },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "почему не разобрали — на языке запроса; есть только у failed"
+          },
           "file_name": {
             "type": "string",
             "description": "имя файла, как его назвал сам пользователь"
@@ -1074,6 +1081,85 @@
           "status": {
             "type": "string",
             "description": "uploaded — принята, parsing — разбирается, parsed — разобрана,\nfailed — разобрать не смогли"
+          }
+        }
+      },
+      "EstimateDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Estimate"
+          },
+          {
+            "type": "object",
+            "required": [
+              "lines"
+            ],
+            "properties": {
+              "lines": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EstimateLine"
+                }
+              }
+            }
+          }
+        ],
+        "description": "Смета со строками. Строки приходят и распознанные, и сырые: нераспознанное\nпоказывается блоком «спросите бригаду, что это», а не прячется."
+      },
+      "EstimateLine": {
+        "type": "object",
+        "description": "Строка сметы: сырой текст плюс то, что удалось распознать. Пустые поля —\nчестный ответ «это место мы не поняли», а не потеря данных.",
+        "required": [
+          "position",
+          "sheet",
+          "raw_text"
+        ],
+        "properties": {
+          "position": {
+            "type": "integer",
+            "format": "int32",
+            "description": "порядок строки в файле"
+          },
+          "price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "quantity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "raw_text": {
+            "type": "string",
+            "description": "строка целиком, как её видел человек в Excel"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "название работы; null — строку не разобрали"
+          },
+          "total": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

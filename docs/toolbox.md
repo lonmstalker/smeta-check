@@ -39,7 +39,9 @@
 | `auth/sessions.rs` | `issue/refresh/logout`, `revoke_all/revoke/revoke_others`, `list` (что видит пользователь), `describe_client(ua)` — «Chrome, macOS» вместо сырого User-Agent |
 | `auth/account.rs` | `change_password`, `request_email_change/confirm_email_change` — обе операции требуют текущий пароль |
 | `users/mod.rs` | `update_profile` (NULL = не менять), `set_email`, `set_role_by_email` |
-| `estimates/mod.rs` | сметы: `create/list/get/count_of` (все с владельцем), `extension_of` (только xlsx/xls), `stored_name(id, ext)`, `clean_file_name`, потолки `MAX_FILE_BYTES`/`MAX_PER_USER` |
+| `estimates/mod.rs` | сметы: `create/list/get/count_of` (все с владельцем), `lines_of/replace_lines`, `extension_of` (только xlsx/xls), `stored_name(id, ext)`, `clean_file_name`, потолки `MAX_FILE_BYTES`/`MAX_PER_USER` |
+| `estimates/parse/` | `parse(bytes)` — файл Excel в строки (звать только из `spawn_blocking`); нераспознанное остаётся сырым текстом, `ParseError` даёт ключ локализации и метку метрики |
+| `estimates/worker.rs` | `run_pending(pool, files_dir)` — разобрать очередь смет; зовётся из `jobs.rs` по тику |
 | `items/mod.rs` | образец row-level authorization: все функции принимают владельца и фильтруют по нему прямо в SQL |
 | `lib.rs` | `AppState` (пул + `Arc<Settings>`); хендлеру нужен пул — `State<PgPool>`, нужна настройка — `State<Arc<Settings>>` |
 

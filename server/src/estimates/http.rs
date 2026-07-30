@@ -7,6 +7,7 @@ use axum::extract::{DefaultBodyLimit, Multipart, Path, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use serde::Serialize;
 use sqlx::PgPool;
 use std::time::Duration;
 use utoipa::ToSchema;
@@ -16,7 +17,7 @@ use crate::AppState;
 use crate::core::config::Settings;
 use crate::core::error::ApiError;
 use crate::core::storage;
-use crate::estimates::{self, Estimate};
+use crate::estimates::{self, Estimate, EstimateLine};
 use crate::users::http::CurrentUser;
 
 /// Файл идёт по мобильному интернету дольше, чем короткий запрос: общих
@@ -142,16 +143,26 @@ pub(crate) async fn list_estimates(
     Ok(Json(estimates::list(&pool, user.id).await?))
 }
 
+/// Смета со строками. Строки приходят и распознанные, и сырые: нераспознанное
+/// показывается блоком «спросите бригаду, что это», а не прячется.
+#[derive(Serialize, ToSchema)]
+pub struct EstimateDetails {
+    #[serde(flatten)]
+    pub estimate: Estimate,
+    pub lines: Vec<EstimateLine>,
+}
+
 #[utoipa::path(get, path = "/api/estimates/{id}", tag = "estimates",
-    responses((status = 200, body = Estimate), (status = 401), (status = 404)),
+    responses((status = 200, body = EstimateDetails), (status = 401), (status = 404)),
     security(("bearer" = [])))]
 pub(crate) async fn get_estimate(
     user: CurrentUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
-) -> Result<Json<Estimate>, ApiError> {
-    estimates::get(&pool, user.id, id)
+) -> Result<Json<EstimateDetails>, ApiError> {
+    let estimate = estimates::get(&pool, user.id, id)
         .await?
-        .map(Json)
-        .ok_or_else(ApiError::not_found)
+        .ok_or_else(ApiError::not_found)?;
+    let lines = estimates::lines_of(&pool, id).await?;
+    Ok(Json(EstimateDetails { estimate, lines }))
 }

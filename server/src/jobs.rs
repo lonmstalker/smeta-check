@@ -2,8 +2,10 @@
 //! процессе, что и api; конкурентные экземпляры не мешают друг другу
 //! благодаря `FOR UPDATE SKIP LOCKED`.
 //!
-//! Задач две: доставка писем из outbox по SMTP (только если задан SMTP_URL)
-//! и периодическая уборка — протухшие токены и старая отправленная почта.
+//! Задач три: разбор загруженных смет (его цикл живёт в домене estimates —
+//! планировщик только зовёт его по тику), доставка писем из outbox по SMTP
+//! (только если задан SMTP_URL) и периодическая уборка — протухшие токены и
+//! старая отправленная почта.
 //!
 //! Лежит не в `core`, а рядом с ним: планировщик знает о доменах (зовёт
 //! `auth::cleanup_expired_tokens`), а `core` о доменах знать не должен.
@@ -13,14 +15,12 @@
 use lettre::message::Mailbox;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use sqlx::PgPool;
-use std::time::Duration;
 use tokio::sync::watch;
 
 use crate::core::config::Settings;
 
 const MAX_SEND_ATTEMPTS: i32 = 5;
-const TICK: Duration = Duration::from_secs(5);
-const CLEANUP_EVERY_TICKS: u32 = 720; // раз в час при тике 5 секунд
+const CLEANUP_EVERY_TICKS: u32 = 720; // раз в час при тике по умолчанию (5 с)
 
 /// Запустить воркер. SMTP_URL не задан — письма остаются в outbox (dev-режим).
 /// `shutdown` — канал завершения: после сигнала новая пачка не берётся.
@@ -36,6 +36,8 @@ pub fn spawn(pool: PgPool, settings: &Settings, mut shutdown: watch::Receiver<bo
         None => None,
     };
     let from = settings.smtp_from.clone();
+    let files_dir = settings.files_dir.clone();
+    let tick_every = settings.worker_tick;
     tokio::spawn(async move {
         // адрес проверен при чтении конфигурации, но полагаться на это нельзя
         let Ok(from) = from.parse::<Mailbox>() else {
@@ -44,6 +46,11 @@ pub fn spawn(pool: PgPool, settings: &Settings, mut shutdown: watch::Receiver<bo
         };
         let mut tick: u32 = 0;
         while !*shutdown.borrow() {
+            // разбор смет: сам цикл — в домене estimates, планировщик только
+            // будит его, потому что о доменах знает он, а не они о нём
+            if let Err(err) = crate::estimates::worker::run_pending(&pool, &files_dir).await {
+                tracing::error!(error = ?err, "estimate parsing failed");
+            }
             if let Some(smtp) = &smtp
                 && let Err(err) = deliver_outbox(&pool, smtp, &from).await
             {
@@ -60,7 +67,7 @@ pub fn spawn(pool: PgPool, settings: &Settings, mut shutdown: watch::Receiver<bo
             }
             tick = tick.wrapping_add(1);
             tokio::select! {
-                () = tokio::time::sleep(TICK) => {}
+                () = tokio::time::sleep(tick_every) => {}
                 _ = shutdown.changed() => break,
             }
         }

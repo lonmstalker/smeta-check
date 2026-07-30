@@ -29,6 +29,9 @@ error-estimate-no-file = Файл не получен — приложите с�
 error-estimate-format = Пока принимаем только Excel: файлы xlsx и xls
 error-estimate-empty = Файл пустой — проверьте, что смета сохранилась
 error-estimate-too-large = Файл больше { $max } МБ — пришлите смету без лишних картинок
+error-estimate-unreadable = Файл не открылся как таблица Excel — пришлите смету заново
+error-estimate-no-data = В файле не нашлось ни одной заполненной строки
+error-estimate-too-big = В файле слишком много листов или строк для сметы
 error-estimate-limit = Пока можно хранить не больше { $max } { $max ->
         [one] сметы
        *[other] смет

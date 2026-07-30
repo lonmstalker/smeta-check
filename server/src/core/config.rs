@@ -83,6 +83,9 @@ pub struct Settings {
     pub rate_limit_upload_rpm: u32,
     /// каталог, где лежат файлы смет (в проде — volume, в тестах — временный)
     pub files_dir: std::path::PathBuf,
+    /// как часто фоновый воркер заглядывает в очереди; на стенде e2e короче,
+    /// иначе браузер ждёт разбора сметы дольше, чем длится сам сценарий
+    pub worker_tick: std::time::Duration,
     pub smtp_url: Option<Secret>,
     pub smtp_from: String,
     pub metrics_addr: SocketAddr,
@@ -122,6 +125,7 @@ impl Settings {
             rate_limit_logs_rpm: parsed("RATE_LIMIT_LOGS_RPM", 60)?,
             rate_limit_upload_rpm: parsed("RATE_LIMIT_UPLOAD_RPM", 10)?,
             files_dir: var("FILES_DIR").map_or_else(|| "./data/files".into(), Into::into),
+            worker_tick: std::time::Duration::from_secs(parsed("WORKER_TICK_SECS", 5)?),
             smtp_url: var("SMTP_URL").filter(|u| !u.is_empty()).map(Secret),
             smtp_from,
             metrics_addr: parsed("METRICS_ADDR", "127.0.0.1:9464".parse()?)?,
@@ -149,6 +153,7 @@ impl Settings {
             rate_limit_upload_rpm: 0,
             // тесты подставляют сюда свой временный каталог (см. spawn_app)
             files_dir: std::env::temp_dir().join("smeta-check-tests"),
+            worker_tick: std::time::Duration::from_millis(50),
             smtp_url: None,
             smtp_from: "no-reply@localhost".into(),
             metrics_addr: SocketAddr::from(([127, 0, 0, 1], 0)),

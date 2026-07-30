@@ -430,6 +430,8 @@ export interface components {
         Estimate: {
             /** @description RFC 3339 в UTC; в местное время переводит браузер */
             created_at: string;
+            /** @description почему не разобрали — на языке запроса; есть только у failed */
+            error?: string | null;
             /** @description имя файла, как его назвал сам пользователь */
             file_name: string;
             /** Format: uuid */
@@ -441,6 +443,36 @@ export interface components {
              *     failed — разобрать не смогли
              */
             status: string;
+        };
+        /**
+         * @description Смета со строками. Строки приходят и распознанные, и сырые: нераспознанное
+         *     показывается блоком «спросите бригаду, что это», а не прячется.
+         */
+        EstimateDetails: components["schemas"]["Estimate"] & {
+            lines: components["schemas"]["EstimateLine"][];
+        };
+        /**
+         * @description Строка сметы: сырой текст плюс то, что удалось распознать. Пустые поля —
+         *     честный ответ «это место мы не поняли», а не потеря данных.
+         */
+        EstimateLine: {
+            /**
+             * Format: int32
+             * @description порядок строки в файле
+             */
+            position: number;
+            /** Format: double */
+            price?: number | null;
+            /** Format: double */
+            quantity?: number | null;
+            /** @description строка целиком, как её видел человек в Excel */
+            raw_text: string;
+            sheet: string;
+            /** @description название работы; null — строку не разобрали */
+            title?: string | null;
+            /** Format: double */
+            total?: number | null;
+            unit?: string | null;
         };
         FieldError: {
             code: string;
@@ -1120,7 +1152,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Estimate"];
+                    "application/json": components["schemas"]["EstimateDetails"];
                 };
             };
             401: {
