@@ -13,6 +13,8 @@
 // ponytail: универсальной таблицы jobs с payload'ами нет — заведём, когда
 // появится первая настоящая отложенная задача, а не «на всякий случай».
 
+use std::sync::Arc;
+
 use lettre::message::Mailbox;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use sqlx::PgPool;
@@ -26,19 +28,22 @@ const CLEANUP_EVERY_TICKS: u32 = 720; // раз в час при тике по �
 /// Запустить фоновые циклы. SMTP_URL не задан — письма остаются в outbox
 /// (dev-режим). `shutdown` — канал завершения: после сигнала новая пачка не
 /// берётся.
-pub fn spawn(pool: PgPool, settings: &Settings, shutdown: watch::Receiver<bool>) {
-    spawn_estimates(pool.clone(), settings, shutdown.clone());
+pub fn spawn(pool: PgPool, settings: &Arc<Settings>, shutdown: watch::Receiver<bool>) {
+    spawn_estimates(pool.clone(), settings.clone(), shutdown.clone());
     spawn_mail(pool, settings, shutdown);
 }
 
 /// Цикл разбора смет. Сам разбор живёт в домене estimates — планировщик
 /// только будит его по тику, потому что о доменах знает он, а не они о нём.
-fn spawn_estimates(pool: PgPool, settings: &Settings, mut shutdown: watch::Receiver<bool>) {
+/// Настройки идут целиком: разбору фото нужен доступ к нейросети.
+fn spawn_estimates(pool: PgPool, settings: Arc<Settings>, mut shutdown: watch::Receiver<bool>) {
     let files_dir = settings.files_dir.clone();
     let tick_every = settings.worker_tick;
     tokio::spawn(async move {
         while !*shutdown.borrow() {
-            if let Err(err) = crate::estimates::worker::run_pending(&pool, &files_dir).await {
+            if let Err(err) =
+                crate::estimates::worker::run_pending(&pool, &files_dir, &settings).await
+            {
                 tracing::error!(error = ?err, "estimate parsing failed");
             }
             tokio::select! {

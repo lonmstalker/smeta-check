@@ -44,7 +44,8 @@
 | `users/mod.rs` | `update_profile` (NULL = не менять), `set_email`, `set_role_by_email` |
 | `estimates/mod.rs` | сметы: `create/list/get/count_of` (все с владельцем), `lines_of/replace_lines`, `extension_of` (только xlsx/xls), `stored_name(id, ext)`, `clean_file_name`, потолки `MAX_FILE_BYTES`/`MAX_PER_USER` |
 | `estimates/parse/` | `parse(bytes)` — файл Excel в строки (звать только из `spawn_blocking`); нераспознанное остаётся сырым текстом, `ParseError` даёт ключ локализации и метку метрики |
-| `estimates/worker.rs` | `run_pending(pool, files_dir)` — разобрать очередь смет; зовётся из `jobs.rs` по тику |
+| `estimates/photo.rs` | `parse(pool, settings, bytes, ext)` — фотография сметы в строки через нейросеть; `PhotoError` (`BadAnswer` — виноват кадр, `Provider` — нет); промпт и сверка «кол-во × цена = сумма» внутри |
+| `estimates/worker.rs` | `run_pending(pool, files_dir, settings)` — разобрать очередь смет (одно фото за тик); зовётся из `jobs.rs` по тику |
 | `lib.rs` | `AppState` (пул + `Arc<Settings>`); хендлеру нужен пул — `State<PgPool>`, нужна настройка — `State<Arc<Settings>>` |
 
 ## Тест-инфраструктура бэкенда: `server/tests/api/common.rs`

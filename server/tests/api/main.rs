@@ -21,6 +21,7 @@ mod auth_verify;
 mod contract;
 mod estimates;
 mod estimates_parse;
+mod estimates_photo;
 mod hardening;
 mod i18n;
 mod llm;

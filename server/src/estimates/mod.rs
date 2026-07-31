@@ -6,6 +6,7 @@
 
 pub mod http;
 pub mod parse;
+pub mod photo;
 pub mod worker;
 
 use serde::Serialize;

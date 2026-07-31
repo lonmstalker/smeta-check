@@ -104,7 +104,7 @@ async fn uploaded_estimate_becomes_parsed_with_lines() {
         .await;
     let id = created.body["id"].as_str().expect("id сметы").to_owned();
 
-    let done = worker::run_pending(&app.pool, &app.files_dir)
+    let done = worker::run_pending(&app.pool, &app.files_dir, &app.settings)
         .await
         .expect("разбор");
     assert_eq!(done, 1, "воркер обязан взять смету в работу");
@@ -135,7 +135,7 @@ async fn broken_file_fails_with_a_readable_reason() {
         .await;
     let id = created.body["id"].as_str().expect("id сметы").to_owned();
 
-    worker::run_pending(&app.pool, &app.files_dir)
+    worker::run_pending(&app.pool, &app.files_dir, &app.settings)
         .await
         .expect("разбор");
 
@@ -170,7 +170,7 @@ async fn estimate_stuck_in_parsing_is_picked_up_again() {
     .await
     .expect("подделать зависший разбор");
 
-    worker::run_pending(&app.pool, &app.files_dir)
+    worker::run_pending(&app.pool, &app.files_dir, &app.settings)
         .await
         .expect("разбор");
 
@@ -190,11 +190,15 @@ async fn parsing_is_not_repeated_forever() {
 
     // первый заход помечает смету failed, второму брать уже нечего
     assert_eq!(
-        worker::run_pending(&app.pool, &app.files_dir).await.ok(),
+        worker::run_pending(&app.pool, &app.files_dir, &app.settings)
+            .await
+            .ok(),
         Some(1)
     );
     assert_eq!(
-        worker::run_pending(&app.pool, &app.files_dir).await.ok(),
+        worker::run_pending(&app.pool, &app.files_dir, &app.settings)
+            .await
+            .ok(),
         Some(0)
     );
 }
