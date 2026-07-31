@@ -7,6 +7,10 @@ import type { EstimateDetails, EstimateLine } from '@/api/client'
 import { api } from '@/api/client'
 import { QueryError } from '@/components/states'
 
+/// Меньше трети строк распознано — распознавание вышло слабым: честнее
+/// предложить прислать файл, чем делать вид, что смета разобрана
+const WEAK_RECOGNITION = 1 / 3
+
 export function EstimateLines({ id }: { id: string }) {
   const { t, i18n } = useTranslation()
   const details = useQuery({
@@ -24,9 +28,20 @@ export function EstimateLines({ id }: { id: string }) {
   const recognized = lines.filter((line) => line.title)
   const unknown = lines.filter((line) => !line.title)
   const number = (value: number) => value.toLocaleString(i18n.language)
+  const fromPhoto = details.data.from_photo
+  const weak = lines.length > 0 && recognized.length / lines.length < WEAK_RECOGNITION
 
   return (
     <div className="space-y-4">
+      {fromPhoto && (
+        /* строки с фото распознала нейросеть — человек должен знать это до
+           того, как поверит числам. Заливка, а не рамка: светлая рамка на
+           белом фоне не читается, а предупреждение обязано быть заметным */
+        <div className="space-y-1 rounded-md bg-muted p-3 text-sm">
+          <p>{t('estimates.photo_notice')}</p>
+          {weak && <p className="font-medium">{t('estimates.photo_weak')}</p>}
+        </div>
+      )}
       <p className="text-sm text-muted-foreground">
         {t('estimates.recognized', { count: recognized.length })}
       </p>

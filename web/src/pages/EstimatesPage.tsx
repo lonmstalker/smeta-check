@@ -19,6 +19,10 @@ import { EstimateLines } from '@/pages/estimates/EstimateLines'
 
 /// пока смета в очереди или разбирается — спрашиваем сервер раз в две секунды
 const POLL_MS = 2_000
+/// фото может ждать дневного бюджета токенов часами: после первой минуты
+/// переходим на редкие запросы, чтобы вкладка не стучала в API сутками
+const SLOW_POLL_MS = 30_000
+const SLOW_POLL_AFTER_MS = 60_000
 const IN_PROGRESS = ['uploaded', 'parsing']
 
 export default function EstimatesPage() {
@@ -32,8 +36,12 @@ export default function EstimatesPage() {
     queryKey: ['estimates'],
     enabled: !!user,
     queryFn: () => api.get<Estimate[]>('/api/estimates'),
-    refetchInterval: (query) =>
-      query.state.data?.some((e) => IN_PROGRESS.includes(e.status)) ? POLL_MS : false,
+    refetchInterval: (query) => {
+      const waiting = (query.state.data ?? []).filter((e) => IN_PROGRESS.includes(e.status))
+      if (waiting.length === 0) return false
+      const oldest = Math.min(...waiting.map((e) => Date.parse(e.created_at)))
+      return Date.now() - oldest > SLOW_POLL_AFTER_MS ? SLOW_POLL_MS : POLL_MS
+    },
   })
 
   const upload = useMutation({
@@ -94,6 +102,9 @@ export default function EstimatesPage() {
           </PendingButton>
         </div>
         <p className="text-sm text-muted-foreground">{t('estimates.hint')}</p>
+        {/* согласие на обработку фото — строкой у формы, как это делают все:
+            отдельной галочки нет, но и молчания о нейросети тоже */}
+        <p className="text-sm text-muted-foreground">{t('estimates.photo_consent')}</p>
         <FormError error={upload.error} />
       </form>
 
@@ -138,6 +149,11 @@ function EstimateCard({
         <CardTitle className="break-words">{estimate.file_name}</CardTitle>
         <p className="flex flex-wrap gap-x-3 text-sm text-muted-foreground">
           <span>{t(`estimates.status.${estimate.status}`)}</span>
+          {/* отдельным объектом, а не вторым словом статуса: «Разобрана» и
+              «С фотографии» — про разное */}
+          {estimate.from_photo && (
+            <span className="rounded bg-muted px-1.5">{t('estimates.photo_badge')}</span>
+          )}
           <DateTime value={estimate.created_at} />
         </p>
         {estimate.error && <p className="text-sm text-destructive">{estimate.error}</p>}

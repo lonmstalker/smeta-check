@@ -14,7 +14,15 @@ const ESTIMATE = {
   file_name: 'Смета бригады.xlsx',
   size_bytes: 15403,
   status: 'parsed',
+  from_photo: false,
   created_at: '2026-07-30T10:00:00Z',
+}
+
+const PHOTO = {
+  ...ESTIMATE,
+  id: '00000000-0000-0000-0000-0000000000e2',
+  file_name: 'Смета.jpg',
+  from_photo: true,
 }
 
 const DETAILS = {
@@ -88,6 +96,49 @@ test('строки сметы открываются по кнопке, непо
   expect(screen.getByText('Распознана 1 работа')).toBeInTheDocument()
   expect(screen.getByText('Спросите бригаду, что это за строки')).toBeInTheDocument()
   expect(screen.getByText('Что-то непонятное из середины файла')).toBeInTheDocument()
+})
+
+test('у сметы с фотографии есть предупреждение про нейросеть, у Excel — нет', async () => {
+  authedApi({
+    '/api/estimates': () => [PHOTO],
+    [`/api/estimates/${PHOTO.id}`]: () => ({ ...PHOTO, lines: DETAILS.lines }),
+  })
+  renderApp(<App />)
+  expect(await screen.findByText('С фотографии')).toBeInTheDocument()
+  fireEvent.click(await screen.findByRole('button', { name: 'Показать строки' }))
+  expect(
+    await screen.findByText(
+      'Строки распознала нейросеть с фотографии — сверьте их с оригиналом сметы',
+    ),
+  ).toBeInTheDocument()
+})
+
+test('у сметы из Excel предупреждения про нейросеть нет', async () => {
+  authedApi({
+    '/api/estimates': () => [ESTIMATE],
+    [`/api/estimates/${ESTIMATE.id}`]: () => DETAILS,
+  })
+  renderApp(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Показать строки' }))
+  expect(await screen.findByText('Штукатурка стен')).toBeInTheDocument()
+  expect(screen.queryByText('С фотографии')).not.toBeInTheDocument()
+  expect(screen.queryByText(/распознала нейросеть/)).not.toBeInTheDocument()
+})
+
+test('фото, где распозналась одна строка из трёх, честно советует прислать файл', async () => {
+  const lines = [
+    DETAILS.lines[0],
+    { ...DETAILS.lines[1], position: 1 },
+    { ...DETAILS.lines[1], position: 2 },
+    { ...DETAILS.lines[1], position: 3 },
+  ]
+  authedApi({
+    '/api/estimates': () => [PHOTO],
+    [`/api/estimates/${PHOTO.id}`]: () => ({ ...PHOTO, lines }),
+  })
+  renderApp(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Показать строки' }))
+  expect(await screen.findByText(/Распозналось мало строк/)).toBeInTheDocument()
 })
 
 test('неизвестный адрес показывает страницу 404', async () => {

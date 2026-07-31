@@ -22,6 +22,7 @@ const ESTIMATES = [
     file_name: 'Смета бригады.xlsx',
     size_bytes: 15403,
     status: 'parsed',
+    from_photo: false,
     created_at: '2026-07-20T10:00:00Z',
   },
   {
@@ -29,14 +30,17 @@ const ESTIMATES = [
     file_name: 'Смета от соседей.xls',
     size_bytes: 34816,
     status: 'parsing',
+    from_photo: false,
     created_at: '2026-07-19T09:00:00Z',
   },
   {
     id: '00000000-0000-0000-0000-0000000000e3',
-    file_name: 'Фото сметы.xlsx',
+    file_name: 'Смета с телефона.jpg',
     size_bytes: 2048,
     status: 'failed',
-    error: 'Файл не открылся как таблица Excel — пришлите смету заново',
+    from_photo: true,
+    error:
+      'Не получилось прочитать смету на фотографии — переснимите её при хорошем свете, чтобы в кадр попали все строки',
     created_at: '2026-07-18T08:00:00Z',
   },
 ]
