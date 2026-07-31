@@ -13,6 +13,8 @@ anyhow = "1"
 argon2 = "0.5.3"
 axum = { version = "0.8", features = ["multipart"] }
 axum-extra = { version = "0.12.6", features = ["cookie"] }
+# картинки уходят в LLM инлайном (data:...;base64,...); крейт и так в дереве
+base64 = "0.22.1"
 # чтение xlsx/xls: чистый Rust, без внешних утилит и без Excel на сервере
 calamine = "0.36.1"
 fluent-bundle = "0.16.0"

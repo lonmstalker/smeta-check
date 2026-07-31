@@ -31,6 +31,8 @@ pub const PASSWORD: &str = "correct-horse-9";
 pub struct TestApp {
     pub router: Router,
     pub pool: PgPool,
+    /// те же настройки, что у приложения: тест зовёт доменные функции напрямую
+    pub settings: Arc<Settings>,
     /// каталог файлов этого теста; удаляется вместе с TestApp
     pub files_dir: std::path::PathBuf,
     _container: Option<ContainerAsync<Postgres>>,
@@ -70,12 +72,14 @@ pub async fn spawn_app_with(tune: impl FnOnce(&mut Settings)) -> TestApp {
         .run(&pool)
         .await
         .expect("migrations apply");
+    let settings = Arc::new(settings);
     TestApp {
         router: server::app(server::AppState {
             pool: pool.clone(),
-            settings: Arc::new(settings),
+            settings: settings.clone(),
         }),
         pool,
+        settings,
         files_dir: files.path().to_path_buf(),
         _container: container,
         _files: files,

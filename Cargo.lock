@@ -2895,6 +2895,7 @@ dependencies = [
  "argon2",
  "axum",
  "axum-extra",
+ "base64",
  "calamine",
  "fluent-bundle",
  "fluent-syntax",

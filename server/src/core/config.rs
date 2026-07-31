@@ -55,6 +55,19 @@ pub struct OauthProvider {
     pub trust_email: bool,
 }
 
+/// Нейросеть: любой OpenAI-совместимый провайдер задаётся тремя переменными,
+/// поэтому смена провайдера или модели — правка конфигурации, а не кода
+/// (порядок действий — `docs/llm.md`).
+#[derive(Debug)]
+pub struct LlmSettings {
+    /// база API без `/chat/completions`
+    pub base_url: String,
+    /// ключа нет — интеграция выключена целиком (фото не принимаются)
+    pub api_key: Option<Secret>,
+    /// идентификатор модели у провайдера; выбран замером F0
+    pub model: String,
+}
+
 #[derive(Debug)]
 pub struct LogSettings {
     /// LOG_FORMAT=json — структурные логи для прода
@@ -89,9 +102,20 @@ pub struct Settings {
     pub smtp_url: Option<Secret>,
     pub smtp_from: String,
     pub metrics_addr: SocketAddr,
+    pub llm: LlmSettings,
     pub log: LogSettings,
     pub oauth: BTreeMap<String, OauthProvider>,
 }
+
+/// Провайдер по умолчанию: OpenRouter (разработка и данные без ПДн).
+/// Пользовательские фото в проде уезжают на российского провайдера — это
+/// смена двух переменных, см. `docs/llm.md`.
+const DEFAULT_LLM_BASE_URL: &str = "https://openrouter.ai/api/v1";
+
+/// Модель по умолчанию — выбрана замером F0 (2026-08-01): на скриншотах смет
+/// 100% строк без единого выдуманного числа. Меняешь модель — перемеряй
+/// (`node scripts/llm-probe.mjs`), она же задаёт потолок токенов.
+const DEFAULT_LLM_MODEL: &str = "google/gemini-3.1-flash-lite";
 
 /// Минимальная длина секрета подписи: короче — не секрет, а опечатка
 const MIN_JWT_SECRET_LEN: usize = 16;
@@ -129,6 +153,11 @@ impl Settings {
             smtp_url: var("SMTP_URL").filter(|u| !u.is_empty()).map(Secret),
             smtp_from,
             metrics_addr: parsed("METRICS_ADDR", "127.0.0.1:9464".parse()?)?,
+            llm: LlmSettings {
+                base_url: var("LLM_BASE_URL").unwrap_or_else(|| DEFAULT_LLM_BASE_URL.into()),
+                api_key: var("LLM_API_KEY").map(Secret),
+                model: var("LLM_MODEL").unwrap_or_else(|| DEFAULT_LLM_MODEL.into()),
+            },
             log: LogSettings {
                 json: var("LOG_FORMAT").is_some_and(|v| v == "json"),
                 dir: var("LOG_DIR"),
@@ -157,6 +186,13 @@ impl Settings {
             smtp_url: None,
             smtp_from: "no-reply@localhost".into(),
             metrics_addr: SocketAddr::from(([127, 0, 0, 1], 0)),
+            // без ключа интеграция выключена: тест, которому нужна нейросеть,
+            // сам подставляет адрес фейкового провайдера и ключ
+            llm: LlmSettings {
+                base_url: DEFAULT_LLM_BASE_URL.into(),
+                api_key: None,
+                model: DEFAULT_LLM_MODEL.into(),
+            },
             log: LogSettings {
                 json: false,
                 dir: None,
@@ -244,11 +280,18 @@ mod tests {
 
     #[test]
     fn secret_is_not_printed() {
-        let settings = Settings::for_tests();
+        let mut settings = Settings::for_tests();
+        // ключ провайдера — такой же секрет, как подпись токенов: в дамп
+        // настроек (а он попадает в логи старта) он уйти не должен
+        settings.llm.api_key = Some(Secret("llm-key-not-for-prod".into()));
         let dump = format!("{settings:?}");
         assert!(
             !dump.contains("test-secret-not-for-prod"),
             "секрет утёк в Debug: {dump}"
+        );
+        assert!(
+            !dump.contains("llm-key-not-for-prod"),
+            "ключ нейросети утёк в Debug: {dump}"
         );
     }
 

@@ -23,5 +23,12 @@ mod estimates;
 mod estimates_parse;
 mod hardening;
 mod i18n;
+mod llm;
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "тестовая инфраструктура: паника хелпера валит тест — это и есть отчёт об ошибке"
+)]
+mod llm_stub;
 mod ops;
 mod sessions;

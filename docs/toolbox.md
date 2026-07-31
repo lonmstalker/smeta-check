@@ -15,6 +15,7 @@
 | `i18n.rs` | `translate(lang, key, args)`, `current_lang()`, `lang_middleware` (язык из Accept-Language), `message_keys(lang)` — для тестов полноты словарей |
 | `telemetry.rs` | `init_tracing()`, `init_metrics()`, `track_http` (лог+метрики каждого запроса), `request_id_layer()`, `REQUEST_ID_HEADER` |
 | `mailer.rs` | `send(pool, to, subject, body)` — ЕДИНСТВЕННАЯ точка отправки писем (кладёт в outbox-очередь) |
+| `llm.rs` | `enabled(settings)`, `complete(pool, settings, prompt, images)` → текст ответа модели (`Image { bytes, mime }`, base64 внутри), `LlmError` (`Disabled/Capped/Http/Timeout/Transport` — виноват не пользователь), `cleanup_old_calls(pool)`; дневной потолок токенов и учёт в `llm_calls` — внутри |
 | `rate_limit.rs` | `limit_per_ip(router, rpm, trust_proxy)` — лимит запросов по IP на группу маршрутов |
 | `storage.rs` | `save(dir, name, bytes)` / `read(dir, name)` / `remove(dir, name)` (уборка после сбоя, не падает) — файлы пользователей на диске (`Settings::files_dir`); имя собирает домен из id записи |
 | `time.rs` | `rfc3339(OffsetDateTime)` — время для ответов API (UTC, форматирует браузер) |
@@ -46,7 +47,10 @@
 
 ## Тест-инфраструктура бэкенда: `server/tests/api/common.rs`
 
-`spawn_app()` — приложение на чистой БД одной строкой; `TestApp`:
+`spawn_app()` — приложение на чистой БД одной строкой; `TestApp` (в нём же
+`settings` — те же настройки, что у приложения: доменные функции зовутся
+напрямую); фейковый провайдер нейросети — `llm_stub.rs`
+(`LlmStub::answering(text)` / `failing(status)`, `calls()`);
 `get/get_auth/post/post_auth/patch_auth/delete_auth/request` (произвольные
 заголовки), `register_user()`,
 `refresh_token_of(res)`, `last_email_to(recipient)` (читает outbox);

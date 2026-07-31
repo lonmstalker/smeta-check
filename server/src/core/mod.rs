@@ -3,6 +3,7 @@ pub mod db;
 pub mod error;
 pub mod health;
 pub mod i18n;
+pub mod llm;
 pub mod mailer;
 pub mod rate_limit;
 pub mod storage;

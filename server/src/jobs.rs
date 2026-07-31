@@ -64,6 +64,11 @@ pub fn spawn(pool: PgPool, settings: &Settings, mut shutdown: watch::Receiver<bo
                 if let Err(err) = cleanup_sent_emails(&pool).await {
                     tracing::error!(error = ?err, "sent email cleanup failed");
                 }
+                // счётчики вызовов нейросети: для дневного потолка нужны
+                // только сегодняшние, остальное — балласт
+                if let Err(err) = crate::core::llm::cleanup_old_calls(&pool).await {
+                    tracing::error!(error = ?err, "llm calls cleanup failed");
+                }
             }
             tick = tick.wrapping_add(1);
             tokio::select! {
