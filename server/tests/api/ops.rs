@@ -3,7 +3,7 @@
 
 use lettre::transport::stub::AsyncStubTransport;
 
-use crate::common::spawn_app;
+use crate::common::{fixture, spawn_app, spawn_app_with};
 
 /// Отправитель для тестов доставки — адрес не важен, важен сам факт письма
 #[allow(
@@ -77,6 +77,52 @@ async fn cleanup_removes_old_sent_emails_but_keeps_the_queue() {
         .await
         .unwrap();
     assert_eq!(left, vec!["Свежее".to_string()]);
+}
+
+/// Регресс: пока цикл был один, кривой SMTP_FROM обрывал его целиком — и
+/// сметы переставали разбираться из-за настройки почты, к которой они не
+/// имеют отношения.
+#[tokio::test]
+async fn broken_smtp_from_does_not_stop_estimate_parsing() {
+    let app = spawn_app_with(|settings| settings.smtp_from = "это не адрес".into()).await;
+    let (token, _) = app.register_user().await;
+    let created = app
+        .post_file(
+            "/api/estimates",
+            "Санузел.xlsx",
+            &fixture("sanuzel-novaya-moskva.xlsx"),
+            &token,
+        )
+        .await;
+    let id = created.body["id"].as_str().unwrap().to_owned();
+
+    let (shutdown, receiver) = tokio::sync::watch::channel(false);
+    server::jobs::spawn(app.pool.clone(), &app.settings, receiver);
+    let status = wait_for_final_status(&app.pool, &id).await;
+    let _ = shutdown.send(true);
+
+    assert_eq!(status.as_deref(), Some("parsed"), "смета не разобралась");
+}
+
+/// Дождаться, пока фоновый цикл доведёт смету до конечного состояния.
+/// Ждём с потолком: тест обязан падать, а не висеть.
+#[allow(
+    clippy::unwrap_used,
+    reason = "хелпер теста: паника валит тест — это и есть отчёт об ошибке"
+)]
+async fn wait_for_final_status(pool: &sqlx::PgPool, id: &str) -> Option<String> {
+    for _ in 0..100 {
+        let status: String = sqlx::query_scalar("SELECT status FROM estimates WHERE id = $1::uuid")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        if status == "parsed" || status == "failed" {
+            return Some(status);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    None
 }
 
 #[tokio::test]

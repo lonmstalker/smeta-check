@@ -22,11 +22,13 @@
 
 ## Бэкенд: `server/src/jobs.rs` (фоновый воркер приложения)
 
-`spawn(pool, settings, shutdown)` — один цикл в процессе api: отдаёт очередь
-писем (`deliver_outbox(pool, smtp, from)`), раз в час зовёт чистку токенов
-домена auth и `cleanup_sent_emails(pool)`. Для разбора руками —
-`failed_emails(pool)` и `retry_email(pool, id)` (см. `bin/ops.rs`). Живёт вне
-`core`, потому что знает о доменах; новую периодическую задачу — сюда.
+`spawn(pool, settings, shutdown)` — ДВА независимых цикла в процессе api:
+почта с уборкой (`deliver_outbox(pool, smtp, from)`, раз в час — чистка
+токенов домена auth, `cleanup_sent_emails(pool)`, `llm::cleanup_old_calls`)
+и разбор смет (`estimates::worker::run_pending`). Разделены, чтобы долгий
+разбор фото не задерживал письма. Для разбора руками — `failed_emails(pool)`
+и `retry_email(pool, id)` (см. `bin/ops.rs`). Живёт вне `core`, потому что
+знает о доменах; новую периодическую задачу — в почтовый цикл.
 
 ## Бэкенд: переиспользуемое из доменов
 

@@ -2,10 +2,11 @@
 //! процессе, что и api; конкурентные экземпляры не мешают друг другу
 //! благодаря `FOR UPDATE SKIP LOCKED`.
 //!
-//! Задач три: разбор загруженных смет (его цикл живёт в домене estimates —
-//! планировщик только зовёт его по тику), доставка писем из outbox по SMTP
-//! (только если задан SMTP_URL) и периодическая уборка — протухшие токены и
-//! старая отправленная почта.
+//! Циклов ДВА, и это важно: разбор смет отдельно, почта и уборка отдельно.
+//! Разбор фотографии — вызов нейросети длиной в минуту, и общий цикл заставил
+//! бы письмо сброса пароля ждать этой минуты. По той же причине кривой
+//! `SMTP_FROM` больше не может остановить разбор смет: он ломает только свой
+//! цикл.
 //!
 //! Лежит не в `core`, а рядом с ним: планировщик знает о доменах (зовёт
 //! `auth::cleanup_expired_tokens`), а `core` о доменах знать не должен.
@@ -22,9 +23,36 @@ use crate::core::config::Settings;
 const MAX_SEND_ATTEMPTS: i32 = 5;
 const CLEANUP_EVERY_TICKS: u32 = 720; // раз в час при тике по умолчанию (5 с)
 
-/// Запустить воркер. SMTP_URL не задан — письма остаются в outbox (dev-режим).
-/// `shutdown` — канал завершения: после сигнала новая пачка не берётся.
-pub fn spawn(pool: PgPool, settings: &Settings, mut shutdown: watch::Receiver<bool>) {
+/// Запустить фоновые циклы. SMTP_URL не задан — письма остаются в outbox
+/// (dev-режим). `shutdown` — канал завершения: после сигнала новая пачка не
+/// берётся.
+pub fn spawn(pool: PgPool, settings: &Settings, shutdown: watch::Receiver<bool>) {
+    spawn_estimates(pool.clone(), settings, shutdown.clone());
+    spawn_mail(pool, settings, shutdown);
+}
+
+/// Цикл разбора смет. Сам разбор живёт в домене estimates — планировщик
+/// только будит его по тику, потому что о доменах знает он, а не они о нём.
+fn spawn_estimates(pool: PgPool, settings: &Settings, mut shutdown: watch::Receiver<bool>) {
+    let files_dir = settings.files_dir.clone();
+    let tick_every = settings.worker_tick;
+    tokio::spawn(async move {
+        while !*shutdown.borrow() {
+            if let Err(err) = crate::estimates::worker::run_pending(&pool, &files_dir).await {
+                tracing::error!(error = ?err, "estimate parsing failed");
+            }
+            tokio::select! {
+                () = tokio::time::sleep(tick_every) => {}
+                _ = shutdown.changed() => break,
+            }
+        }
+        tracing::info!("estimate worker stopped");
+    });
+}
+
+/// Цикл почты и уборки. Уборка живёт здесь, а не в разборе: она короткая и
+/// не должна ждать вызова нейросети.
+fn spawn_mail(pool: PgPool, settings: &Settings, mut shutdown: watch::Receiver<bool>) {
     let smtp = match &settings.smtp_url {
         Some(url) => match AsyncSmtpTransport::<Tokio1Executor>::from_url(url.expose()) {
             Ok(builder) => Some(builder.build()),
@@ -35,24 +63,21 @@ pub fn spawn(pool: PgPool, settings: &Settings, mut shutdown: watch::Receiver<bo
         },
         None => None,
     };
-    let from = settings.smtp_from.clone();
-    let files_dir = settings.files_dir.clone();
+    // адрес проверен при чтении конфигурации, но полагаться на это нельзя.
+    // Кривой адрес отключает только доставку: уборка продолжает работать.
+    let from = settings.smtp_from.parse::<Mailbox>().ok();
+    if from.is_none() {
+        tracing::error!(
+            from = settings.smtp_from,
+            "bad SMTP_FROM, email delivery disabled"
+        );
+    }
     let tick_every = settings.worker_tick;
     tokio::spawn(async move {
-        // адрес проверен при чтении конфигурации, но полагаться на это нельзя
-        let Ok(from) = from.parse::<Mailbox>() else {
-            tracing::error!(from, "bad SMTP_FROM, email delivery disabled");
-            return;
-        };
         let mut tick: u32 = 0;
         while !*shutdown.borrow() {
-            // разбор смет: сам цикл — в домене estimates, планировщик только
-            // будит его, потому что о доменах знает он, а не они о нём
-            if let Err(err) = crate::estimates::worker::run_pending(&pool, &files_dir).await {
-                tracing::error!(error = ?err, "estimate parsing failed");
-            }
-            if let Some(smtp) = &smtp
-                && let Err(err) = deliver_outbox(&pool, smtp, &from).await
+            if let (Some(smtp), Some(from)) = (&smtp, &from)
+                && let Err(err) = deliver_outbox(&pool, smtp, from).await
             {
                 tracing::error!(error = ?err, "outbox delivery failed");
             }
@@ -76,7 +101,7 @@ pub fn spawn(pool: PgPool, settings: &Settings, mut shutdown: watch::Receiver<bo
                 _ = shutdown.changed() => break,
             }
         }
-        tracing::info!("background worker stopped");
+        tracing::info!("mail worker stopped");
     });
 }
 
