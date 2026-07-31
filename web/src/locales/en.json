@@ -19,6 +19,7 @@
   "estimates.recognized_other": "{{count}} items recognized",
   "estimates.quantity": "{{value}} {{unit}}",
   "estimates.price": "at {{value}} ₽",
+  "estimates.total": "{{value}} ₽",
   "estimates.unknown_title": "Not recognized",
   "estimates.unknown_hint": "Ask the crew what these lines mean",
   "auth.email": "Email",

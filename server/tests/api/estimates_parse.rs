@@ -55,6 +55,45 @@ fn every_fixture_is_readable_and_gives_lines() {
     );
 }
 
+/// Числа известных строк: эвристика колонок не должна путать объём с
+/// расценкой (ложная «шапка» из дисклеймера) и цену за единицу с суммой
+/// строки (шапка «… | Стоимость | Итого»)
+#[test]
+fn known_lines_keep_their_numbers() {
+    // remplanner: над таблицей дисклеймер с «объемами работ» в одной ячейке
+    let lines = parse::parse(fixture("podrobnaya-smeta-remplanner.xls")).expect("разбор");
+    let brick = lines
+        .iter()
+        .find(|l| l.title.as_deref() == Some("Демонтаж перегородок из кирпича (1/2 кирпича)"))
+        .expect("известная строка remplanner");
+    assert_eq!(brick.quantity, Some(5.6));
+    assert_eq!(brick.price, Some(170.0));
+    let total = brick.total.expect("сумма строки");
+    assert!((total - 952.0).abs() < 0.01, "сумма строки: {total}");
+
+    // профкаркас: «Стоимость» — цена за единицу, сумма строки — в «Итого»
+    let lines = parse::parse(fixture("smeta-rabot-profkarkas.xls")).expect("разбор");
+    let primer = lines
+        .iter()
+        .find(|l| l.title.as_deref() == Some("Грунтовка потолка 3 цикла"))
+        .expect("известная строка профкаркаса");
+    assert_eq!(primer.quantity, Some(66.2));
+    assert_eq!(primer.price, Some(90.0));
+    assert_eq!(primer.total, Some(5958.0));
+}
+
+/// Шапка листа над таблицей («Объект», «Общая площадь») не выбрасывается,
+/// а сохраняется сырым текстом — и не выдаётся за работу
+#[test]
+fn rows_above_the_table_header_stay_raw() {
+    let lines = parse::parse(fixture("kvartira-55m-shapka-novaya-moskva.xlsx")).expect("разбор");
+    let object = lines
+        .iter()
+        .find(|l| l.raw_text.contains("Объект"))
+        .expect("строка «Объект» из шапки листа");
+    assert_eq!(object.title, None);
+}
+
 #[tokio::test]
 async fn uploaded_estimate_becomes_parsed_with_lines() {
     let app = spawn_app().await;

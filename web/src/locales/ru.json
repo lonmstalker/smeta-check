@@ -21,6 +21,7 @@
   "estimates.recognized_other": "Распознано {{count}} работы",
   "estimates.quantity": "{{value}} {{unit}}",
   "estimates.price": "по {{value}} ₽",
+  "estimates.total": "{{value}} ₽",
   "estimates.unknown_title": "Не разобрали",
   "estimates.unknown_hint": "Спросите бригаду, что это за строки",
   "auth.email": "Почта",

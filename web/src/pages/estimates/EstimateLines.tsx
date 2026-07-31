@@ -63,7 +63,11 @@ function Work({ line, number }: { line: EstimateLine; number: (value: number) =>
       {/* на телефоне сумма уходит под название, но остаётся у правого края */}
       <div className="flex flex-wrap justify-between gap-x-4">
         <span className="break-words">{line.title}</span>
-        {line.total != null && <span className="ml-auto tabular-nums">{number(line.total)}</span>}
+        {line.total != null && (
+          <span className="ml-auto tabular-nums">
+            {t('estimates.total', { value: number(line.total) })}
+          </span>
+        )}
       </div>
       <p className="flex flex-wrap gap-x-3 text-sm text-muted-foreground">
         {line.quantity != null && (

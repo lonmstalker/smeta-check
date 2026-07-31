@@ -113,6 +113,9 @@ pub fn clean_file_name(file_name: &str) -> String {
     file_name.trim().chars().take(MAX_FILE_NAME_LEN).collect()
 }
 
+/// Создать карточку сметы, если потолок владельца ещё не выбран. None —
+/// лимит: проверка и вставка идут под замком по владельцу, поэтому два
+/// одновременных запроса не протащат лишнюю смету.
 pub async fn create(
     pool: &PgPool,
     id: Uuid,
@@ -120,7 +123,20 @@ pub async fn create(
     file_name: &str,
     ext: &str,
     size_bytes: i64,
-) -> sqlx::Result<Estimate> {
+) -> sqlx::Result<Option<Estimate>> {
+    let mut tx = pool.begin().await?;
+    // замок транзакционный: отпускается сам на commit или rollback
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))")
+        .bind(owner)
+        .execute(&mut *tx)
+        .await?;
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM estimates WHERE owner_user_id = $1")
+        .bind(owner)
+        .fetch_one(&mut *tx)
+        .await?;
+    if count >= MAX_PER_USER {
+        return Ok(None);
+    }
     let row: EstimateRow = sqlx::query_as(
         "INSERT INTO estimates (id, owner_user_id, file_name, file_ext, size_bytes)
          VALUES ($1, $2, $3, $4, $5)
@@ -131,9 +147,10 @@ pub async fn create(
     .bind(file_name)
     .bind(ext)
     .bind(size_bytes)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
-    Ok(row.into_estimate())
+    tx.commit().await?;
+    Ok(Some(row.into_estimate()))
 }
 
 /// Свои сметы, новые сверху. Больше `MAX_PER_USER` их не бывает, поэтому

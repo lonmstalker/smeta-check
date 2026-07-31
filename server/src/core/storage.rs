@@ -29,6 +29,17 @@ pub async fn read(dir: &Path, name: &str) -> std::io::Result<Vec<u8>> {
     tokio::fs::read(path_of(dir, name)).await
 }
 
+/// Убрать файл после сбоя, лучшее из возможного: файла может уже не быть
+/// (это не ошибка), а прочие проблемы уходят в лог — падать здесь не из-за
+/// чего, запись в базе всё равно не появилась.
+pub async fn remove(dir: &Path, name: &str) {
+    if let Err(err) = tokio::fs::remove_file(path_of(dir, name)).await
+        && err.kind() != std::io::ErrorKind::NotFound
+    {
+        tracing::warn!(name, error = %err, "осиротевший файл не удалился");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

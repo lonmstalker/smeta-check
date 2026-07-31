@@ -62,6 +62,17 @@ pub fn parse(sheet: &str, row: &[Cell], columns: Option<&Columns>) -> Option<Par
     Some(parsed)
 }
 
+/// Строка без распознавания: над шапкой таблицы лежат название объекта и
+/// реквизиты — их показываем как есть, а поля работ к ним не примеряем
+pub fn raw(sheet: &str, row: &[Cell]) -> Option<ParsedLine> {
+    let raw_text = raw_text(row);
+    (!raw_text.is_empty()).then(|| ParsedLine {
+        sheet: sheet.to_owned(),
+        raw_text,
+        ..ParsedLine::default()
+    })
+}
+
 fn raw_text(row: &[Cell]) -> String {
     let joined = row
         .iter()
@@ -99,7 +110,9 @@ fn fill_by_last_number(parsed: &mut ParsedLine, row: &[Cell]) {
 fn title_at(row: &[Cell], index: usize) -> Option<String> {
     let cell = row.get(index)?;
     let text = cell.text.trim();
-    (cell.number.is_none() && text.chars().count() >= MIN_TITLE_LEN).then(|| text.to_owned())
+    // «кв.м.» длиннее трёх букв, но названием работы быть не может
+    (cell.number.is_none() && text.chars().count() >= MIN_TITLE_LEN && !is_unit(text))
+        .then(|| text.to_owned())
 }
 
 fn first_title(row: &[Cell]) -> Option<String> {
@@ -113,12 +126,15 @@ fn number_at(row: &[Cell], index: usize) -> Option<f64> {
 fn unit_of(row: &[Cell]) -> Option<String> {
     row.iter().find_map(|cell| {
         let text = cell.text.trim();
-        let normalized = text.to_lowercase().replace(' ', "");
-        UNITS
-            .iter()
-            .any(|unit| normalized == *unit || normalized == format!("{unit}."))
-            .then(|| text.to_owned())
+        is_unit(text).then(|| text.to_owned())
     })
+}
+
+fn is_unit(text: &str) -> bool {
+    let normalized = text.to_lowercase().replace(' ', "");
+    UNITS
+        .iter()
+        .any(|unit| normalized == *unit || normalized == format!("{unit}."))
 }
 
 #[cfg(test)]
@@ -205,5 +221,20 @@ mod tests {
     #[test]
     fn empty_row_is_skipped() {
         assert!(parse("Смета", &row(&[("", None), ("  ", None)]), None).is_none());
+    }
+
+    #[test]
+    fn unit_is_not_mistaken_for_a_title() {
+        // колонка названия пуста, работа записана дальше — «кв.м.» из
+        // соседней ячейки названием не становится
+        let cells = row(&[
+            ("", None),
+            ("кв.м.", None),
+            ("Стяжка пола", None),
+            ("8", Some(8.0)),
+        ]);
+        let parsed = parse("Смета", &cells, None).expect("строка разобрана");
+        assert_eq!(parsed.title.as_deref(), Some("Стяжка пола"));
+        assert_eq!(parsed.unit.as_deref(), Some("кв.м."));
     }
 }

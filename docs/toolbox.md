@@ -16,7 +16,7 @@
 | `telemetry.rs` | `init_tracing()`, `init_metrics()`, `track_http` (лог+метрики каждого запроса), `request_id_layer()`, `REQUEST_ID_HEADER` |
 | `mailer.rs` | `send(pool, to, subject, body)` — ЕДИНСТВЕННАЯ точка отправки писем (кладёт в outbox-очередь) |
 | `rate_limit.rs` | `limit_per_ip(router, rpm, trust_proxy)` — лимит запросов по IP на группу маршрутов |
-| `storage.rs` | `save(dir, name, bytes)` / `read(dir, name)` — файлы пользователей на диске (`Settings::files_dir`); имя собирает домен из id записи |
+| `storage.rs` | `save(dir, name, bytes)` / `read(dir, name)` / `remove(dir, name)` (уборка после сбоя, не падает) — файлы пользователей на диске (`Settings::files_dir`); имя собирает домен из id записи |
 | `time.rs` | `rfc3339(OffsetDateTime)` — время для ответов API (UTC, форматирует браузер) |
 
 ## Бэкенд: `server/src/jobs.rs` (фоновый воркер приложения)

@@ -77,10 +77,10 @@ pub(crate) async fn upload_estimate(
     State(settings): State<Arc<Settings>>,
     mut form: Multipart,
 ) -> Result<(StatusCode, Json<Estimate>), ApiError> {
+    // ранняя проверка — чтобы не писать файл на диск зря; настоящая граница
+    // лимита — под замком в `estimates::create`
     if estimates::count_of(&pool, user.id).await? >= estimates::MAX_PER_USER {
-        return Err(
-            ApiError::validation("error-estimate-limit").arg("max", estimates::MAX_PER_USER)
-        );
+        return Err(limit_reached());
     }
     let field = form
         .next_field()
@@ -108,15 +108,11 @@ pub(crate) async fn upload_estimate(
     }
 
     let id = Uuid::new_v4();
-    // сначала файл, потом запись: осиротевший файл — это мусор на диске, а
-    // карточка без файла — смета, которую невозможно разобрать
-    storage::save(
-        &settings.files_dir,
-        &estimates::stored_name(id, ext),
-        &bytes,
-    )
-    .await?;
-    let estimate = estimates::create(
+    // сначала файл, потом запись: карточка без файла — смета, которую
+    // невозможно разобрать, а не вставшая карточка убирает файл за собой
+    let name = estimates::stored_name(id, ext);
+    storage::save(&settings.files_dir, &name, &bytes).await?;
+    let created = estimates::create(
         &pool,
         id,
         user.id,
@@ -124,13 +120,30 @@ pub(crate) async fn upload_estimate(
         ext,
         bytes.len().try_into().unwrap_or(i64::MAX),
     )
-    .await?;
+    .await;
+    let estimate = match created {
+        Ok(Some(estimate)) => estimate,
+        // лимит добит параллельной загрузкой или база отказала — файл на
+        // диске осиротел, убираем его же
+        Ok(None) => {
+            storage::remove(&settings.files_dir, &name).await;
+            return Err(limit_reached());
+        }
+        Err(err) => {
+            storage::remove(&settings.files_dir, &name).await;
+            return Err(err.into());
+        }
+    };
     metrics::counter!("estimates_uploaded_total").increment(1);
     Ok((StatusCode::CREATED, Json(estimate)))
 }
 
 fn no_file() -> ApiError {
     ApiError::validation("error-estimate-no-file").field("file")
+}
+
+fn limit_reached() -> ApiError {
+    ApiError::validation("error-estimate-limit").arg("max", estimates::MAX_PER_USER)
 }
 
 #[utoipa::path(get, path = "/api/estimates", tag = "estimates",

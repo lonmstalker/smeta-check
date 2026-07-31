@@ -80,13 +80,24 @@ pub fn parse(bytes: Vec<u8>) -> Result<Vec<ParsedLine>, ParseError> {
     let mut lines = Vec::new();
     for sheet in sheets {
         let columns = header::find(&sheet.rows);
-        let start = columns.as_ref().map_or(0, |c| c.header_row + 1);
-        for row in sheet.rows.iter().skip(start) {
+        let header_row = columns.as_ref().map(|c| c.header_row);
+        for (index, row) in sheet.rows.iter().enumerate() {
             if lines.len() >= MAX_LINES {
                 tracing::warn!(limit = MAX_LINES, "в смете больше строк, чем мы храним");
                 return finish(lines);
             }
-            if let Some(parsed) = line::parse(&sheet.name, row, columns.as_ref()) {
+            // сама шапка — служебная строка таблицы, а не позиция сметы
+            if Some(index) == header_row {
+                continue;
+            }
+            // над шапкой лежат название объекта и реквизиты: не выбрасываем
+            // их, а сохраняем сырым текстом, не примеряя колонки таблицы
+            let parsed = if header_row.is_some_and(|header| index < header) {
+                line::raw(&sheet.name, row)
+            } else {
+                line::parse(&sheet.name, row, columns.as_ref())
+            };
+            if let Some(parsed) = parsed {
                 lines.push(parsed);
             }
         }
