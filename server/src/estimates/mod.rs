@@ -22,9 +22,28 @@ use crate::estimates::parse::ParsedLine;
 /// не смета, и принимать её значит бесплатно отдавать диск.
 pub const MAX_FILE_BYTES: usize = 10 * 1024 * 1024;
 
-/// В этой волне принимаем только Excel: PDF и фото разбирать пока нечем, и
-/// принятый файл навсегда завис бы в статусе «загружено».
-pub const ALLOWED_EXTS: [&str; 2] = ["xlsx", "xls"];
+/// Excel разбирает алгоритмика, фотографию — нейросеть. PDF пока не
+/// принимаем: разбирать его нечем, и принятый файл завис бы в «загружено».
+pub const ALLOWED_EXTS: [&str; 6] = ["xlsx", "xls", "jpg", "jpeg", "png", "webp"];
+
+/// Фото ли это. Дальше по этому признаку расходятся и правила приёма
+/// (нейросеть включена, почта подтверждена), и способ разбора.
+pub fn is_photo(ext: &str) -> bool {
+    matches!(ext, "jpg" | "jpeg" | "png" | "webp")
+}
+
+/// Похож ли файл на картинку заявленного вида — по первым байтам. Проверяем
+/// на загрузке, а не в разборе: переименованный в .jpg архив не должен
+/// стоить трёх вызовов нейросети.
+pub fn photo_matches_ext(ext: &str, bytes: &[u8]) -> bool {
+    match ext {
+        "jpg" | "jpeg" => bytes.starts_with(&[0xFF, 0xD8, 0xFF]),
+        "png" => bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
+        "webp" => bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP".as_slice()),
+        // не фото: Excel честно падает в разборе с читаемой причиной
+        _ => true,
+    }
+}
 
 /// Потолок смет на аккаунт: без него диск заливается 10-мегабайтными файлами
 /// бесплатно и бесконечно.
@@ -46,6 +65,9 @@ pub struct Estimate {
     /// почему не разобрали — на языке запроса; есть только у failed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// смету прислали фотографией — её строки распознала нейросеть, и
+    /// интерфейс обязан честно об этом предупредить
+    pub from_photo: bool,
     /// RFC 3339 в UTC; в местное время переводит браузер
     pub created_at: String,
 }
@@ -71,6 +93,7 @@ pub struct EstimateLine {
 struct EstimateRow {
     id: Uuid,
     file_name: String,
+    file_ext: String,
     size_bytes: i64,
     status: String,
     error_key: Option<String>,
@@ -82,6 +105,7 @@ impl EstimateRow {
         Estimate {
             id: self.id,
             file_name: self.file_name,
+            from_photo: is_photo(&self.file_ext),
             size_bytes: self.size_bytes,
             status: self.status,
             // в базе лежит ключ локализации, текст подставляем на языке
@@ -140,7 +164,7 @@ pub async fn create(
     let row: EstimateRow = sqlx::query_as(
         "INSERT INTO estimates (id, owner_user_id, file_name, file_ext, size_bytes)
          VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, file_name, size_bytes, status, error_key, created_at",
+         RETURNING id, file_name, file_ext, size_bytes, status, error_key, created_at",
     )
     .bind(id)
     .bind(owner)
@@ -157,7 +181,7 @@ pub async fn create(
 /// страниц здесь нет.
 pub async fn list(pool: &PgPool, owner: Uuid) -> sqlx::Result<Vec<Estimate>> {
     let rows: Vec<EstimateRow> = sqlx::query_as(
-        "SELECT id, file_name, size_bytes, status, error_key, created_at FROM estimates
+        "SELECT id, file_name, file_ext, size_bytes, status, error_key, created_at FROM estimates
          WHERE owner_user_id = $1 ORDER BY created_at DESC",
     )
     .bind(owner)
@@ -169,7 +193,7 @@ pub async fn list(pool: &PgPool, owner: Uuid) -> sqlx::Result<Vec<Estimate>> {
 /// Своя смета по id. None — нет такой или она чужая: снаружи это одно и то же.
 pub async fn get(pool: &PgPool, owner: Uuid, id: Uuid) -> sqlx::Result<Option<Estimate>> {
     let row: Option<EstimateRow> = sqlx::query_as(
-        "SELECT id, file_name, size_bytes, status, error_key, created_at FROM estimates
+        "SELECT id, file_name, file_ext, size_bytes, status, error_key, created_at FROM estimates
          WHERE id = $1 AND owner_user_id = $2",
     )
     .bind(id)

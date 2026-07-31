@@ -903,6 +903,7 @@
           "file_name",
           "size_bytes",
           "status",
+          "from_photo",
           "created_at"
         ],
         "properties": {
@@ -920,6 +921,10 @@
           "file_name": {
             "type": "string",
             "description": "имя файла, как его назвал сам пользователь"
+          },
+          "from_photo": {
+            "type": "boolean",
+            "description": "смету прислали фотографией — её строки распознала нейросеть, и\nинтерфейс обязан честно об этом предупредить"
           },
           "id": {
             "type": "string",
@@ -1226,7 +1231,7 @@
           "file": {
             "type": "string",
             "format": "binary",
-            "description": "файл сметы: xlsx или xls, до 10 МиБ"
+            "description": "файл сметы: xlsx, xls или фотография (jpg, png, webp), до 10 МиБ.\nФото принимается только при включённой нейросети и подтверждённой почте"
           }
         }
       },

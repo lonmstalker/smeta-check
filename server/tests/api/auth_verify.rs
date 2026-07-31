@@ -3,22 +3,7 @@
 use axum::http::StatusCode;
 use serde_json::json;
 
-use crate::common::spawn_app;
-
-/// Достать токен из ссылки вида .../verify-email?token=<hex> в теле письма
-#[allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    reason = "хелпер теста: паника валит тест — это и есть отчёт об ошибке"
-)]
-fn token_from(body: &str) -> String {
-    body.split("token=")
-        .nth(1)
-        .expect("link with token in email")
-        .chars()
-        .take_while(|c| c.is_ascii_hexdigit())
-        .collect()
-}
+use crate::common::{spawn_app, token_from_letter as token_from};
 
 #[tokio::test]
 async fn registration_sends_email_and_link_verifies_once() {

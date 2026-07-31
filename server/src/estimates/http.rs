@@ -59,7 +59,8 @@ pub fn upload_router(settings: &Settings) -> Router<AppState> {
 /// multipart с файлом из сигнатуры хендлера.
 #[derive(ToSchema)]
 pub struct UploadForm {
-    /// файл сметы: xlsx или xls, до 10 МиБ
+    /// файл сметы: xlsx, xls или фотография (jpg, png, webp), до 10 МиБ.
+    /// Фото принимается только при включённой нейросети и подтверждённой почте
     #[schema(value_type = String, format = Binary)]
     pub file: String,
 }
@@ -94,12 +95,20 @@ pub(crate) async fn upload_estimate(
     let Some(ext) = estimates::extension_of(&file_name) else {
         return Err(ApiError::validation("error-estimate-format").field("file"));
     };
+    if estimates::is_photo(ext) {
+        allow_photo(&pool, &settings, user.id).await?;
+    }
     let bytes = field.bytes().await.map_err(|err| {
         tracing::warn!(error = %err, "файл сметы не дочитался");
         no_file()
     })?;
     if bytes.is_empty() {
         return Err(ApiError::validation("error-estimate-empty").field("file"));
+    }
+    // проверяем до записи на диск: мусор, переименованный в .jpg, не должен
+    // стоить трёх вызовов нейросети
+    if !estimates::photo_matches_ext(ext, &bytes) {
+        return Err(ApiError::validation("error-estimate-not-a-photo").field("file"));
     }
     if bytes.len() > estimates::MAX_FILE_BYTES {
         return Err(ApiError::too_large("error-estimate-too-large")
@@ -136,6 +145,23 @@ pub(crate) async fn upload_estimate(
     };
     metrics::counter!("estimates_uploaded_total").increment(1);
     Ok((StatusCode::CREATED, Json(estimate)))
+}
+
+/// Фото — дорогой вход: каждое стоит вызова нейросети. Поэтому два условия.
+/// Первое: нейросеть вообще включена (иначе фото зависло бы в очереди
+/// навсегда). Второе: почта подтверждена — бесплатных аккаунтов без
+/// настоящей почты у дорогого разбора нет.
+async fn allow_photo(pool: &PgPool, settings: &Settings, user_id: Uuid) -> Result<(), ApiError> {
+    if !crate::core::llm::enabled(settings) {
+        return Err(ApiError::validation("error-estimate-photo-off").field("file"));
+    }
+    let verified = crate::users::find_by_id(pool, user_id)
+        .await?
+        .is_some_and(|user| user.email_verified);
+    if !verified {
+        return Err(ApiError::validation("error-estimate-photo-needs-email").field("file"));
+    }
+    Ok(())
 }
 
 fn no_file() -> ApiError {

@@ -399,6 +399,11 @@ export interface components {
             error?: string | null;
             /** @description имя файла, как его назвал сам пользователь */
             file_name: string;
+            /**
+             * @description смету прислали фотографией — её строки распознала нейросеть, и
+             *     интерфейс обязан честно об этом предупредить
+             */
+            from_photo: boolean;
             /** Format: uuid */
             id: string;
             /** Format: int64 */
@@ -508,7 +513,8 @@ export interface components {
         UploadForm: {
             /**
              * Format: binary
-             * @description файл сметы: xlsx или xls, до 10 МиБ
+             * @description файл сметы: xlsx, xls или фотография (jpg, png, webp), до 10 МиБ.
+             *     Фото принимается только при включённой нейросети и подтверждённой почте
              */
             file: string;
         };

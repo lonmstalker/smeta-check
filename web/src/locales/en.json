@@ -6,7 +6,7 @@
   "estimates.title": "My estimates",
   "estimates.file": "Estimate file",
   "estimates.upload": "Upload",
-  "estimates.hint": "Excel: xlsx or xls, up to 10 MB",
+  "estimates.hint": "Excel (xlsx, xls) or a photo of the estimate (jpg, png, webp), up to 10 MB",
   "estimates.empty": "Nothing here yet — upload your first estimate",
   "estimates.login_hint": "Sign in to upload an estimate",
   "estimates.status.uploaded": "In queue",

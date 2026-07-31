@@ -6,7 +6,7 @@
   "estimates.title": "Мои сметы",
   "estimates.file": "Файл сметы",
   "estimates.upload": "Загрузить",
-  "estimates.hint": "Excel: xlsx или xls, до 10 МБ",
+  "estimates.hint": "Excel (xlsx, xls) или фотография сметы (jpg, png, webp), до 10 МБ",
   "estimates.empty": "Пока пусто — загрузите первую смету",
   "estimates.login_hint": "Чтобы загрузить смету, войдите",
   "estimates.status.uploaded": "В очереди",

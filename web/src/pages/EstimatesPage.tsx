@@ -84,7 +84,8 @@ export default function EstimatesPage() {
           <Input
             ref={fileInput}
             type="file"
-            accept=".xlsx,.xls"
+            /* фото — по MIME-типам: так iOS сам переводит HEIC из галереи в JPEG */
+            accept=".xlsx,.xls,image/jpeg,image/png,image/webp"
             aria-label={t('estimates.file')}
             className="h-auto py-1.5"
           />

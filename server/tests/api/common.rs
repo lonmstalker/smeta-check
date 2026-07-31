@@ -48,6 +48,16 @@ pub fn fixture(name: &str) -> Vec<u8> {
     std::fs::read(&path).unwrap_or_else(|err| panic!("нет фикстуры {path:?}: {err}"))
 }
 
+/// Токен из ссылки вида `.../verify-email?token=<hex>` в теле письма
+pub fn token_from_letter(body: &str) -> String {
+    body.split("token=")
+        .nth(1)
+        .expect("в письме ожидалась ссылка с токеном")
+        .chars()
+        .take_while(char::is_ascii_hexdigit)
+        .collect()
+}
+
 /// Приложение на чистой БД — одна строка в начале каждого теста
 pub async fn spawn_app() -> TestApp {
     spawn_app_with(|_| {}).await
@@ -256,6 +266,30 @@ impl TestApp {
             res.body
         );
         (res.body["access_token"].as_str().unwrap().to_owned(), email)
+    }
+
+    /// Пользователь с подтверждённой почтой: дорогие входы (фото сметы)
+    /// открыты только таким. Регистрация, письмо из dev-ящика, переход по
+    /// ссылке — тот же путь, что у настоящего человека.
+    pub async fn register_verified_user(&self) -> (String, String) {
+        let (token, email) = self.register_user().await;
+        let letter = self
+            .last_email_to(&email)
+            .await
+            .expect("письмо с подтверждением почты");
+        let res = self
+            .post(
+                "/api/auth/verify-email",
+                json!({ "token": token_from_letter(&letter) }),
+            )
+            .await;
+        assert_eq!(
+            res.status,
+            StatusCode::NO_CONTENT,
+            "почта не подтвердилась: {}",
+            res.body
+        );
+        (token, email)
     }
 
     /// Достать «сырой» refresh-токен из Set-Cookie ответа

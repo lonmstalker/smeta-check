@@ -73,7 +73,7 @@ async fn foreign_and_missing_estimates_look_the_same() {
 }
 
 #[tokio::test]
-async fn only_excel_is_accepted() {
+async fn unsupported_format_is_rejected() {
     let app = spawn_app().await;
     let (token, _) = app.register_user().await;
 
@@ -95,6 +95,99 @@ async fn only_excel_is_accepted() {
         .await;
     assert_eq!(empty.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(empty.body["error"]["code"], "error-estimate-empty");
+}
+
+/// Минимальный jpeg: до разбора дело в этих тестах не доходит, а на загрузке
+/// проверяются ровно первые байты
+const JPEG: &[u8] = b"\xff\xd8\xff\xe0\x00\x10JFIF photo of an estimate";
+
+/// Приложение с включённой нейросетью (адрес провайдера тут не важен: до
+/// вызова дело доходит только в разборе)
+async fn app_with_llm() -> crate::common::TestApp {
+    spawn_app_with(|settings| settings.llm.api_key = Some("test-llm-key".to_owned().into())).await
+}
+
+#[tokio::test]
+async fn photo_is_accepted_from_a_user_with_confirmed_email() {
+    let app = app_with_llm().await;
+    let (token, _) = app.register_verified_user().await;
+
+    let res = app
+        .post_file("/api/estimates", "Смета.jpg", JPEG, &token)
+        .await;
+
+    assert_eq!(res.status, StatusCode::CREATED, "ответ: {}", res.body);
+    assert_eq!(
+        res.body["from_photo"], true,
+        "смета обязана знать, что она с фото"
+    );
+    let id = res.body["id"].as_str().expect("id сметы").to_owned();
+    assert!(
+        app.files_dir.join(format!("{id}.jpg")).exists(),
+        "фото не легло на диск"
+    );
+    // у Excel-сметы того же пользователя признак остаётся выключенным
+    let excel = app
+        .post_file("/api/estimates", "Смета.xlsx", &fixture(SMALL_XLSX), &token)
+        .await;
+    assert_eq!(excel.body["from_photo"], false);
+}
+
+#[tokio::test]
+async fn photo_without_confirmed_email_is_refused_with_a_readable_reason() {
+    let app = app_with_llm().await;
+    let (token, _) = app.register_user().await;
+
+    let res = app
+        .post_file("/api/estimates", "Смета.jpg", JPEG, &token)
+        .await;
+
+    assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(
+        res.body["error"]["code"],
+        "error-estimate-photo-needs-email"
+    );
+    // Excel-путь подтверждения почты не требует
+    let excel = app
+        .post_file("/api/estimates", "Смета.xlsx", &fixture(SMALL_XLSX), &token)
+        .await;
+    assert_eq!(excel.status, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn photo_is_refused_while_the_neural_network_is_off() {
+    let app = spawn_app().await;
+    let (token, _) = app.register_verified_user().await;
+
+    let res = app
+        .post_file("/api/estimates", "Смета.jpg", JPEG, &token)
+        .await;
+
+    assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(res.body["error"]["code"], "error-estimate-photo-off");
+}
+
+#[tokio::test]
+async fn garbage_renamed_to_jpg_is_rejected_before_any_recognition() {
+    let app = app_with_llm().await;
+    let (token, _) = app.register_verified_user().await;
+
+    let res = app
+        .post_file(
+            "/api/estimates",
+            "Смета.jpg",
+            b"PK\x03\x04 zip archive",
+            &token,
+        )
+        .await;
+
+    assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(res.body["error"]["code"], "error-estimate-not-a-photo");
+    let saved: i64 = sqlx::query_scalar("SELECT count(*) FROM estimates")
+        .fetch_one(&app.pool)
+        .await
+        .expect("счёт смет");
+    assert_eq!(saved, 0, "мусор не должен становиться сметой");
 }
 
 #[tokio::test]
