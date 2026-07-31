@@ -14,3 +14,7 @@ node_modules/
 .env.prod
 .idea/
 .DS_Store
+
+# Замер vision-моделей (F0): локальный корпус фото и ключи провайдеров
+/fixtures-local
+.env.probe
