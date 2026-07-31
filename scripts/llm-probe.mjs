@@ -83,24 +83,31 @@ const numbersIn = (text) =>
 const near = (a, b) => Math.abs(a - b) <= Math.max(0.01, Math.abs(b) * 0.005);
 const hasNumber = (pool, value) => pool.some((n) => near(value, n));
 
+// «Плёнка» и «пленка» — одно слово: модели пишут ё как придётся.
 const words = (text) =>
   new Set(
     text
       .toLowerCase()
+      .replace(/ё/g, "е")
       .replace(/[^\p{L}\p{N}]+/gu, " ")
       .split(" ")
       .filter((w) => w.length > 2 && !/^\d+$/.test(w)),
   );
 
-// Позиция сметы в эталоне — строка, где есть и слова, и хотя бы одно число.
+// Эталон — построчная расшифровка кадра. Строка с «#» — комментарий, в замер не
+// идёт вовсе. Строка с «~» — то, что на листе есть, но позицией сметы не
+// считается (итоги, нечитаемое имя, числа печатного бланка): её числа известны
+// замеру — значит, они не выдумка, — но распознавания имени с модели не ждём.
+// Остальные строки с числами — позиции: по ним и считается «строк распознано».
 function truthOf(file) {
-  const text = readFileSync(file, "utf8");
-  const lines = text
+  const kept = readFileSync(file, "utf8")
     .split("\n")
     .map((l) => l.trim())
-    .filter((l) => words(l).size >= 2 && numbersIn(l).length > 0)
+    .filter((l) => l && !l.startsWith("#"));
+  const lines = kept
+    .filter((l) => !l.startsWith("~") && numbersIn(l).length > 0)
     .map((l) => ({ words: words(l), numbers: numbersIn(l) }));
-  return { lines, numbers: numbersIn(text) };
+  return { lines, numbers: numbersIn(kept.join("\n")) };
 }
 
 // Совпадение имени работы: доля общих слов от более короткого имени.
@@ -118,12 +125,12 @@ function score(truth, answer) {
     words: words(String(l.name ?? "")),
     numbers: [l.quantity, l.price, l.total].map(Number).filter((n) => Number.isFinite(n)),
   }));
-  let matched = 0;
   let wrong = 0;
   let invented = 0;
   let checked = 0;
   const used = new Set();
-  for (const expected of truth.lines) {
+  const pairs = [];
+  truth.lines.forEach((expected, ti) => {
     let best = -1;
     let bestScore = 0.5;
     got.forEach((line, i) => {
@@ -133,12 +140,30 @@ function score(truth, answer) {
         best = i;
       }
     });
-    if (best === -1) continue;
+    if (best === -1) return;
     used.add(best);
-    matched += 1;
-    for (const value of got[best].numbers) {
+    pairs.push([ti, best]);
+  });
+  // Второй проход — по числам: строка, у которой сошлись количество, цена и
+  // сумма, распознана, даже если имя написано иначе («гастроинтестин» вместо
+  // «гастроинтестинал»). Иначе замер штрафует модель за букву, а не за смету.
+  truth.lines.forEach((expected, ti) => {
+    if (pairs.some(([t]) => t === ti)) return;
+    const found = got.findIndex(
+      (line, i) =>
+        !used.has(i) &&
+        line.numbers.length >= 2 &&
+        line.numbers.every((n) => hasNumber(expected.numbers, n)),
+    );
+    if (found === -1) return;
+    used.add(found);
+    pairs.push([ti, found]);
+  });
+  const matched = pairs.length;
+  for (const [ti, gi] of pairs) {
+    for (const value of got[gi].numbers) {
       checked += 1;
-      if (hasNumber(expected.numbers, value)) continue;
+      if (hasNumber(truth.lines[ti].numbers, value)) continue;
       if (hasNumber(truth.numbers, value)) wrong += 1;
       else invented += 1;
     }
@@ -158,9 +183,10 @@ function score(truth, answer) {
 
 const MIME = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
 
+const keyOf = (candidate) => env[candidate.keyEnv ?? "OPENROUTER_API_KEY"];
+
 async function ask(candidate, photo) {
-  const key = env[candidate.keyEnv ?? "OPENROUTER_API_KEY"];
-  if (!key) throw new Error(`нет ключа ${candidate.keyEnv ?? "OPENROUTER_API_KEY"} в .env.probe`);
+  const key = keyOf(candidate);
   const bytes = readFileSync(photo);
   const mime = MIME[extname(photo).toLowerCase()];
   if (!mime) throw new Error(`не картинка: ${photo}`);
@@ -236,32 +262,47 @@ function classes(dir) {
         .filter((f) => MIME[extname(f).toLowerCase()])
         .slice(0, limit)
         .map((f) => join(dir, e.name, f)),
-    }))
-    .filter((c) => c.photos.length);
+    }));
 }
 
 const pct = (part, whole) => (whole ? `${((part / whole) * 100).toFixed(0)}%` : "—");
 
-function report(results, prices, zdr) {
+// Цена всего прогона по строке таблицы: OpenRouter отдаёт факт в usage.cost,
+// прайс-лист — запасной вариант (например, для провайдера без такого поля).
+function costOf(row, prices) {
+  if (row.cost) return row.cost;
+  const p = prices[row.model] ?? {};
+  if (!p.prompt) return 0;
+  return row.promptTokens * +p.prompt + row.completionTokens * +p.completion;
+}
+
+function report(results, prices, zdr, empty) {
   const out = [];
+  let total = 0;
   for (const [cls, rows] of Object.entries(results)) {
     out.push(`\n### ${cls} (${rows[0]?.photos ?? 0} кадров)\n`);
     out.push("| модель | ZDR | строк | чисел неверно | выдумано | токенов/фото | $/фото | с/фото | сбои |");
     out.push("|---|---|---|---|---|---|---|---|---|");
     for (const r of rows) {
-      const p = prices[r.model] ?? {};
-      const cost = p.prompt ? (r.promptTokens * +p.prompt + r.completionTokens * +p.completion) / r.ok : 0;
+      if (r.noKey) {
+        out.push(`| ${r.id} | — | нет ключа ${r.keyEnv} в .env.probe — кандидат пропущен ||||||`);
+        continue;
+      }
+      const cost = costOf(r, prices);
+      total += cost;
       out.push(
         `| ${r.id} | ${zdr.has(r.model) ? "да" : r.model.startsWith("gpt://") ? "РФ" : "нет"} ` +
           `| ${pct(r.matched, r.expected)} | ${pct(r.wrong, r.checked)} | ${r.invented} ` +
           `| ${r.ok ? Math.round((r.promptTokens + r.completionTokens) / r.ok) : "—"} ` +
-          `| ${cost ? cost.toFixed(4) : "—"} | ${r.ok ? (r.seconds / r.ok).toFixed(1) : "—"} | ${r.fails.length} |`,
+          `| ${cost ? (cost / r.ok).toFixed(4) : "—"} | ${r.ok ? (r.seconds / r.ok).toFixed(1) : "—"} | ${r.fails.length} |`,
       );
     }
     for (const r of rows) for (const f of r.fails) out.push(`\n- сбой ${r.id} на ${f}`);
   }
+  for (const cls of empty) out.push(`\n### ${cls}: кадров нет — класс ждёт съёмки`);
+  out.push(`\nПрогон стоил $${total.toFixed(4)} (по счёту провайдера).`);
   out.push(
-    "\nПланка F0: строк ≥90%, чисел неверно ≤1%, выдумано = 0. " +
+    "Планка F0: строк ≥90%, чисел неверно ≤1%, выдумано = 0. " +
       "Вердикт считается по каждому классу отдельно.",
   );
   return out.join("\n");
@@ -272,18 +313,26 @@ const candidates = CANDIDATES.filter((c) => !only.length || only.includes(c.id))
 const outDir = join(corpusDir, ".probe-out");
 mkdirSync(outDir, { recursive: true });
 const results = {};
+const empty = [];
 
 for (const cls of classes(corpusDir)) {
+  if (!cls.photos.length) {
+    empty.push(cls.name);
+    continue;
+  }
   results[cls.name] = [];
   for (const candidate of candidates) {
     const row = {
       id: candidate.id,
       model: candidate.model,
       photos: cls.photos.length,
+      // Нет ключа — кандидат пропускается строкой в таблице, а не падением.
+      noKey: keyOf(candidate) ? false : true,
+      keyEnv: candidate.keyEnv ?? "OPENROUTER_API_KEY",
       expected: 0, matched: 0, wrong: 0, invented: 0, checked: 0,
-      promptTokens: 0, completionTokens: 0, seconds: 0, ok: 0, fails: [],
+      promptTokens: 0, completionTokens: 0, seconds: 0, ok: 0, cost: 0, fails: [],
     };
-    for (const photo of cls.photos) {
+    for (const photo of row.noKey ? [] : cls.photos) {
       process.stderr.write(`${cls.name}/${basename(photo)} → ${candidate.id}\n`);
       try {
         const { text, usage, seconds, bytes } = await ask(candidate, photo);
@@ -292,6 +341,7 @@ for (const cls of classes(corpusDir)) {
         for (const k of ["expected", "matched", "wrong", "invented", "checked"]) row[k] += s[k];
         row.promptTokens += usage.prompt_tokens ?? 0;
         row.completionTokens += usage.completion_tokens ?? 0;
+        row.cost += usage.cost ?? 0;
         row.seconds += seconds;
         row.ok += 1;
         writeFileSync(
@@ -306,4 +356,4 @@ for (const cls of classes(corpusDir)) {
   }
 }
 
-console.log(report(results, prices, zdr));
+console.log(report(results, prices, zdr, empty));
